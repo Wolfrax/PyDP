@@ -1,0 +1,1090 @@
+Chapter 1.0 Programming the PDP-11
+
+This tutorial stresses those aspects of machine programming that are
+needed to study the system programs of Unix. These include parts of the
+C compiler, the assembler, the link editor, the boot programs, and the
+kernel. Robert M. Supnik's PDP-11 simulator (SIMH) is employed to
+provide hands on experience.
+
+						 I am a very bottom-up thinker
+									   Ken
+
+SIMH: If you do not have access to a real PDP-11 with Unix V6 running,
+you need to use a PDP-11 simulator. This lecture assumes that you use
+Bob Supniks simulator, available for download at
+	http://simh.trailing-edge.com/
+
+1.0.0 Machine Programs and Assembler Programs 
+
+A "machine program" is a sequence of bytes that contain numbers in the
+range [0, 2^8), that is, 8-bit numbers. Each byte is identified by its
+"address". Instructions are encoded in "words", that is two adjacent
+bytes. The address of a word is even and equals the address of its "low
+byte". The odd addressed byte of a word is its "high byte". "Low" and
+"high" indicate the weight in a base 2^8 number system. The low byte
+has the weight one and the high byte has the weight 2^8. So, the number
+stored in a word is
+
+	word = low byte + high byte * 2^8.
+
+Both words and addresses are in the range [0, 2^16).  The instructions
+operate on zero, one or two operands, which are byte or word encoded.
+
+Notation: "Numbers" mean nonnegative integers. The terms "unsigned
+integers" and "signed integers" are widely used to mean nonnegative
+integers respective integers.  The notation "(un)signed" suggests, that
+there are signs which are (not) attached to integers. But this is
+misleading.
+
+Exercise: A word has the value 1000. What are the values l, h of its
+low and high bytes?
+
+The encoding of instructions is defined in the "PDP-11 Instruction Set"
+(filed in pdp11/doc/cpu), which you should read accompaning this
+script.
+
+The PDP-11 supports two operand types, namely integers and boolean
+arrays.  The encoding of integers is explained in section 1 below.  A
+boolean value is encoded as a number with "true" <-> 1 and "false" <->
+0. The PDP-11 instructions support two sizes of boolean arrays, namely
+eight and 16. These arrays are encoded in bytes respective words. A
+word encoded boolean with entries b0, b1, ... b15 is represented by the
+number
+
+	b0*2^0 + b1*2^1 + ... + b15*2^15 .
+
+Note the difference between a number and its notation. "Hex" in "hex
+number" is not an attribute of the number (like e.g. "even") but
+indicates the notation of a number, namely as a sequence of digits with
+base 16. Numbers that encode instructions are often notated octal,
+because the instruction's code is subdivided in fields of three bits
+each.
+
+Exercise: The odd numbered entries of a byte encoded boolean array are
+true, the others false. What is its encoding?
+
+People and programming tools use octal or hexadecimal notation for a
+number just because it is stored in words or bytes. This is a bad
+habit.  Use common sense when choosing the base. In this script, the C
+language convention is used: A leading 0 indicates base 8, a leading 0x
+indicates base 16. Otherwise decimal notation is used throughout.
+Numbers that encode instructions, or numbers in assembler programs
+however are notated with base 8, even if not starting with a "0".
+
+An assembler program differs from a machine program by naming numbers
+(symbols) and operations (mnemonics).  The assembler builds
+instructions, addresses and operands from mnemonics, symbols and
+numbers and writes a sequence of assembled words, thereby translating
+an assembler program to a machine program. Symbols, mnemonics and
+numbers are notated using the ASCII character set.
+
+The paper "Unix Assembler Reference Manual" (filed in v6/doc/as.ps)
+defines syntax and meaning of assembler programs--more comprehensive
+and less verbose as seems appropiate in this tutorial.
+
+The symbols "r0", "r1", ... "r7", "sp" and "pc" name the general
+registers.
+
+The assembler keeps track of the current location, that is, the address
+of the currently assembled word, in the "location counter".  Its name
+is ".", also known as "dot". At the start of an assembly dot is set to
+the first address of the program, known as the program's "origin", dot
+is then incremented by 2 with every word assembled.
+
+An "expression" is a number or a symbol, possibly combined with numbers
+and symbols by operators like "+" or "-". The expression is evaluated
+during assembly time. This differs from high level languages like "C",
+where expressions might be translated to a sequence of machine
+instructions and evaluated at run time.
+
+The assembler implicitly assigns certain "types" to symbols, numbers
+and expressions. These types include "relative" and "absolute address",
+"register", and instructions. "Relative" here means the address is
+relative to the program's beginning, its origin.
+
+The type of an expression can be modified by the '^' operator. E.g. the
+assembler statement ".=400^." sets the location counter to 0400.  The
+type casting operator "^" casts the type of the left hand expression to
+the type of the right hand expression. In the example "400^.", the type
+of ".", which is "relative address", is cast upon the type of "400",
+which is "absolute address".  A line starting with a symbol followed by
+a colon (":") defines a "label". Its value is set to dot and its type
+is relative address.
+
+The assembler expects numbers to be notated octal.
+
+An "instruction statement" consists of a mnemonic and--depending on the
+the number of operands--zero, one or two operand fields. With two
+operand fields, the source field comes first, followed by a ",",
+followed by the destination field, e.g., "mov src,dest". An operand
+field specificies an address mode and a register. Four even numbered
+modes specify the operand's address (direct addressing) and four odd
+numbered modes specify the address of the operand's address (indirect
+addressing). The PDP-11 architecture is "regular", that is, you can use
+all addressing modes in an operand field, regardless of the
+instruction.  Furthermore, the registers are "general", that is, you
+can use all eight registers in the operand specification, regardless of
+the instruction.  Regularity and generality means few simple rules
+define a powerful system--the hallmark of good design.
+
+The address modes and their names follow.
+
+- Mode 0:	register
+  Specified by: A register.
+  Meaning:      The register holds the operand.
+  Example:	r0
+
+- Mode 1:	register indirect
+  Specified by: A parenthesized register.
+  Meaning:      The register holds the operand's address.
+  Example:	(r0)
+
+- Mode 2, 4:	auto-increment; auto-decrement
+  Specified by: A parenthesized register suffixed by "+"
+		or prefixed by "-".
+  Meaning:      The register is incremented after resp. decremented
+		before it is used to address the operand.
+  Examples:	(r0)+, -(r0)
+
+- Mode 6:	indexed
+  Specified by: An expression followed by a parenthesized register.
+  Meaning:      The sum of the expression and register addresses the operand.
+  		The value of the expression is assembled in the word
+		following the instruction.
+  Example:      10(r0)
+
+- Mode 1, 3, 5, 7: ~ indirect
+  Specified by: A "*" followed by an even mode (i.e. direct) specification.
+  Meaning:      Replace "operand" by "operand's address" in the
+		meanings of the corresponding direct mode.
+  Examples:	*r0, *(r0)+, *-(r0), *10(r0)
+
+So address mode 1 can be specified by a parenthesized register or by a
+"*" followed by a register--syntactic sugar even in assembler!
+When you drop the expression in mode 7, "0" is assumed.
+
+Exercise:
+What do you get, if you drop the expression in mode 6?
+
+In modes 6 and 7 the program counter is used implicitly to address the
+word holding the value of the expression. When the program counter is
+used implicitly, it is immediately incremented by 2.  This is the case
+whenever an instruction word is fetched or whenever address modes 6 or
+7 are encountered.
+
+Exercise:
+With each of the instructions at address 0, what will be the PC after
+execution of the instruction?
+
+a)	inc r0
+b)	inc 10(r0)	(Note: '10' is octal, this is an assembler statement.)
+c)	inc *10(r0)
+d)	inc pc
+e)	inc (pc)
+f)	inc 10(pc)
+g)	inc *10(pc)
+h)	inc (pc)+
+
+The assembler offers shortcuts to explicitly specify the PC in address
+modes and furthermore calculate PC-relative offsets from the location
+counter.
+
+- Mode 2;	immediate (register indirect)
+  Specified as:	The letter "$", followed by an expression.
+  Meaning:      The value of the expression is the operand.  It is
+		stored in the word following the instruction.
+  Example:	$10, short for "(r7)+; 10"
+
+- Mode 6;	relative (indexed)
+  Specified as: An expression.
+  Meaning:      The expression denotes the address of the operand. The
+		offset relative to dot+2 to is assembled in the
+		word following the instruction.
+
+  Example:      10, short for 2(r7)
+		In this (and the next example) it is assumed that the
+		word holding the offset is at 4. The offset is relative
+		to .+2, which is 6, and thus turns out to be 2.
+
+- Mode 3, 7;	absolute (auto-increment indirect)
+		relative indirect (indexed indirect)
+  Specified as:	A prefixed "*".
+  Meaning:      Replace "operand" by "operand's address" in the
+		meanings of the direct modes 2 and 6.
+  Example:	*$10, short for "*(r7)+; 10"; 	*10, short for *2(r7)
+
+In both the relative and absolute mode the expression denotes the
+operand's address, e.g., "10" and "*$10" specifiy the operand at
+location 010 = 8.  The choice between these modes matters when you move
+the whole machine program from one address range to another. If the
+operand is moving with the programm, use relative mode; whereas if the
+operands location is independent of the programs location, use absolute
+mode.
+
+Note the overloading of the terms "relative" and "absolute": When
+talking about the types of assembler symbols, "relative" means a value
+relative to the origin of the program, whereas in connection with
+address modes, "relative" means an offset relative to the program
+counter.
+
+Exercise: How many words need to be assembled for each of these instructions:
+	add	r1,r2
+	sub	*r1,*r2
+	cmp	(r1),(r2)
+	mov	(r1)+,-(r2)
+	mov	*(r1)+,-*(r2)
+	mov	$10,r2
+	mov	$10,10
+
+Exercise: Assume each of the following instructions start at 0.
+Each of the other words in memory hold twice their address, that is the
+word at 2 holds 4. Which words are affected if the instruction at 0 is:
+	mov	(r1),(pc)+
+	mov	r1,*(pc)+
+	mov	r1,(pc)
+	mov	r1,*(pc)
+
+Exercise: Assemble this instruction:
+	br	.+20
+
+1.0.1 Signed Integers,  Unsigned Integers and Addresses.
+
+The predominant operand types are signed integers, unsigned integers
+and addresses. In the PDP-11 instruction set, addresses and unsigned
+integers don't differ. Furthermore, the additive integer instructions
+(add, sub, neg, inc and dec) are implement both signed and unsigned
+arithmetic.
+
+To understand how one instruction works for signed and unsigned
+operands, note that the result of a word operation is truncated to 16
+bits, which means, it is taken "modulo N" with N = 2^16. In other
+words, the additive instructions implement modulo N arithmetic with
+operands and results in [0, N).
+
+For the upcoming discussion you need a definition of integer division
+and the modulo operator:
+
+For any integer a and any positive integer b, the modulo and division
+operators are defined by these two conditions:
+
+(DEF0)	(a div b)*b + a mod b = a	0 <= a mod b < b
+
+Exercise: Compute 13 mod 10 and 13 mod 100.
+
+DEF0 means that the div operator rounds towards minus, since the
+remainder  mod  is nonnegative.  ANSI-C leaves the rounding direction
+of the "/" operator up to the implementation of the compiler.  In
+PDP11-C, Java and all C-compilers that I enjoyed, integer division
+rounds towards zero, not towards minus.  This matters if the dividend
+is negative. Furthermore, "div" and "mod" are defined only when the
+divisor is positive, whereas "/" and "%" are defined for negative
+divisors as well, again, not by the C-language but by the
+implementation of the compiler.
+
+Example:
+	(-15) div 12 = -2; (-15) mod 12 = (-15) - (-2)*12 = 9
+but
+	(-15) / 12 = -1; (-15) % 12 = (-15) - (-1)*12 = -3
+	
+Exercise: Compute (-13) mod 10 and (-13) % 10?
+
+Example: The following ANSI-C function computes i mod k regardless
+of the implementation of the "%" operator:
+
+	int
+	mod(int i, int k) {
+		int m;
+
+		m = i % k;
+		if (m < 0)
+			return m + k;
+		else
+			return m;
+	}
+
+From (DEF0) you can derive one simple but fundamental property:
+
+(MOD0)	a mod b = (a + k*b) mod b, for any integer a, k and positive integer b
+
+You certainly are eager to see the above properties proved, aren't you? OK:
+
+With q0 := a div b, q1 := (a+k*b) div b, DEV0 yields:
+
+	a mod b  =  a - b*q0
+and
+	(a+k*b) mod b  =  a+k*b - q1*b
+		       =  a + b*(k - q1)
+
+which shows that (a mod b) and ((a+k*b) mod b) differ by a multiple of
+b. Since DEF0 guarantees both terms being in [0, b), they must be equal.
+This proved MOD0.
+
+Exercise: Prove that a mod b differs from a by a multiple of b, that is:
+
+(MOD1)		a mod b = a + k*b	for a suitable k.
+
+Exercise: Use the MOD1 and MOD0 to prove that
+	(a mod b) mod b = a mod b.
+
+Exercise: Express low and high byte of a word by the div and mod operators.
+
+This ends the treatise of modulo arithmetics.
+
+Back to the PDP-11 instructions which now read:
+
+	add(m,n) = (m+n) mod N
+	sub(m,n) = (n-m) mod N
+	neg(m)   = (-m) mod N
+
+To get rid of the mod operator for neg(m), apply its definition:
+
+The case m = 0 yields:
+	neg(0)  =  (-0) mod N  =  0 mod N  =  0
+
+The case m > 0 yields:
+	(-m) div N  =  -1, since -N < -m < 0, and further
+
+	(-m) mod N  =  (-m) - (-1) * N 
+		    =  (-m) + N
+		    =  N - m
+
+The number N-m is called the (two's) complement of m. So, unsigned
+negation computes the complement and unsigned subtraction adds the
+complement.
+
+In order to reuse these unsigned operations for signed arithmetic you
+have to choose an encoding that maps nonnegative integers to
+themselves.  The encoding of negative integers needs to mirror the
+negation of unsigned arithmetic, leading to property
+
+(1)	i is encoded as i, and -i is encoded as N-i.	(for positive i)
+
+Furthermore, you want the range of encodable integers to be symmetrical
+around zero, in other words, you want that
+
+(2)	the negation of an encodable integer leads to an encodable integer.
+
+Properties (1) and (2) leaves you no choice but to define the so called
+"two's complement encoding" which maps [-N/2, N/2) to [0, N):
+
+	[-N/2, 0) --> [N/2, N),		i --> i+N
+	[0,  N/2) --> [0, N/2),		i --> i
+
+MOD0 lets you reformulate this encoding somewhat shorter:
+	[-N/2, N/2) --> [0, N)		i --> i mod N
+
+Exercise: With N = 100 instead of 2^16, and which of 1, -1, 30, -30, 50,
+-50 are encodable? Compute their encodings.
+
+Resume:
+- The additive instructions are defined for nonnegative integers.
+- They implement modulo 2^16 arithmetic.
+- With the two's complement encoding of negative integers, 
+  the unsigned operations don't differ from signed operations.
+- The range of encodable integers is [-N/2, N/2)
+- A negative integer i is encoded as N+i.
+- An integer i and its encoding m are related by
+	m = i mod N
+
+So far we have shown how integers need to be encoded if you want to
+reuse unsigned operations for integer operations. But we still have to
+prove that this encoding in fact lets you reuse unsigned operations.
+Let i and j be encodable integers, and m resp. n their encodings. We
+need to prove, that
+	add(m, n)	encodes i+j,
+	sub(m, n)       encodes i-j
+	neg(n)		encodes -i
+provided that i+j, i-j and -i are encodable integers.
+
+Example: With N=10 and i = 2, j = -1 you get m=2, n=9 and
+	add(m, n) = add(2, 9) = 11 mod 10 = 1 which encodes (2+(-1)).
+	sub(m, n) = sub(2, 9) = -7 mod 10 = 3 which encodes (2-(-1)).
+	neg(n) = neg(2) = -2 mod 10 = 8 which encodes (-2).
+
+To prove that add can be reused, we calculate:
+	encoding of i+j = (i+j) mod N 		     (definition of encoding)
+			= (m+n+k*N) mod N            (MOD1 twice)
+			= (m+n) mod N                (MOD0)
+			= add(m, n)                  (definition of add)
+
+Exercise: Express the integer k above by means of the div operator.
+Exercise: Prove, that neg and sub can be reused.
+
+Note that property (2) is broken by the smallest encodable integer
+-N/2, whose encoding -(N/2)+N = N/2 is its own complement.  Therefore
+the decoded result of neg(N/2) is -N/2 instead of N/2, which misses the
+range of encodable integers by one.
+
+If i is negative, its encoding is >= N/2, which means the high bit is
+set.  That's why the high bit is called the "sign" bit. Most instructions
+set the N-flag to the sign bit of the result.
+
+The "carry flag" (C-flag) is set if the result of add or sub had to be
+truncated to fit in [0, N).  It is useful for comparing unsigned
+numbers and for coding multiprecision arithmetic. Note that neither the
+inc nor the dec instructions modify the carry flag.
+
+It follows, that  for any m, n in [0, N) you get:
+	m+n =  N*C + add(m, n)
+	n-m = -N*C + sub(m, n)
+
+Or, reformulated:
+	C = (m+n) div N,
+	C = (m-n) div N.
+
+The overflow flag (V-flag) is set if the decoded result is not in
+[-N/2, N/2). High level programming languages don't let you access
+these flags, which sometimes makes programming of arithmetic algorithms
+in C more cumbersome than in assembler.  Implicit address calculations
+as specified by addressing modes do not affect any condition flags.
+
+Additive integer arithmetic is provided for byte encoded integers as
+well--with N=2^8 instead of 2^16. Byte instructions need to convert
+bytes to words if the destination operand is a general register. This
+is done such that the word encodes the same integer as the byte. Let b
+be the value of the byte, i the integer encoded by n and w the value
+of the word.
+Case 0: b encodes nonnegative integer: b in [0, 2^7), i = b, and
+	w = i = b
+is the word encoding of i.
+Case 1: b encodes a negative integer: b in [2^7, 2^8), i = b-2^8, and
+	w = 2^16+i = 2^16+b-2^8
+is the word encoding of i.
+
+For an alternate view of this conversion, consider the high byte h
+and low byte l of w:
+	h = w div 2^8, l = w mod 2^8.
+
+In case 0 you get:
+	h = b div 2^8 = 0;
+	l = b mod 2^8 = b
+
+In case 1 you get:
+	w = 2^16+b-2^8 = (2^8-1)*2^8 + b
+	h = w div 2^8 = 2^8-1
+	l = w mod 2^8 = b
+
+In both cases l equals b and each bit of h equals b's sign bit. In
+other words, this conversion "extends the sign" of b to h. "Sign
+extension" is to be applied whenever you need to convert an integer
+encoding to an encoding with more bits of the same integer.
+
+Sign extension must not be applied when converting values that don't
+encode integers. Byte encodings of characters serve as a prominent
+source of trouble when sign extending 8-bit bytes to 16- or 32-bit
+words. 
+
+Both the PDP-11 machine language and the C language of Unix V6 support
+unsigned arithmetic only for 16-bit addresses.  Integer arithmetic,
+byte to word conversion and integer comparisons assume signed
+arithmetic throughout. This makes the semantics easier to comprehend
+than the mess of "unsigned" and "signed" integers combined with "type
+propagation", as introduced by later versions of the C language.
+
+Furthermore, the notion of "unsigned" characters is not needed with
+ASCII, whose codes happen to be encodings of nonnegative integers only
+and are thus not affected by sign extension.  The problem of sign
+extending characters is solved by the Java language, which simply
+defines character codes to be unsigned integers and all other integer
+types as being signed.  In this respect, Java mirrors the simplicity
+approach of the PDP-11 machine language and C in Unix V6.
+
+Exercise: The DIT is a computer very similar to a PDP-11, but based on
+decimal digits instead of binary digits. Its bytes hold two dits, its
+words two bytes. The DIT reuses additive unsigned arithmetic for signed
+arithmetic the same way as the PDP-11 and provides the same instruction
+set. Answer the following questions for the DIT:
+
+What is the range of byte resp. word encodable integers?
+What is the byte encoding of -45?
+Which integer is word encoded by 600?
+
+What are the results of each of the following instructions:
+	movb	$25,r1
+	movb	$65,r1
+Which of the condition flags need to hold dits instead of bits to be
+useful? 
+
+Assume fifty is a word containing 50.
+Which of the following instructions will set the V flag? What will be the
+the final value of fifty?
+
+	negb	fifty
+	neg	fifty
+
+The same with neg first and negb second.
+
+Exercise: Assemble this instruction, for a DIT and for a PDP-11:
+	br	.
+
+1.0.2 An example
+
+Its time to illustrate PDP-11 instructions, operand types, machine
+programs, and assembler programs by coding and running an example
+program.
+
+Before you run a machine program you need to enter it in memory
+starting at the program's origin.  This is known as "loading".  Then
+set the PC to the address of the first instruction to be executed.
+This address is called the "entry" of the program.  To inspect the
+contents of registers and memory (also known as the "state") stop the
+program to freeze the state.
+
+SIMH: Loading, running and stopping programs is explained in chapter 3
+of the simulator documentation (filed in simh/simh_doc.txt). See
+section 3.5 "Examining and Changing State", section 3.6 "Running
+Programs", and section 3.7.2 "Stopping Programs".  Consult the PDP11
+part of the documentation (filed in simh/PDP11/pdp11_doc.txt) for
+the names of registers and flags you want to access.
+
+Program sum1
+This program reads n >= 0 from the SR, sums up the first n nonnegative
+integers, writes the sum to the DR and halts.  The sum turns out to be
+n*(n-1)/2, which does not fit in a word for n > sqrt(2N).  But, since n
+< 2^16, the result is < 2^32 and fits in two words. Registers r1 and r2
+hold the high respective low word of the sum.
+
+machine	program		assembler program
+addr	contents	
+000000			. = 400^.                    
+			/* r0:	 number of integers added so far */
+			/* r1r2: sum of integers in [0, r0) */
+			/* r3:	 n */
+			io	=	177570	/ switch and display register
+000400	013703 			mov	*$io,r3	/ read n from SR in r3
+000402	177570
+000404	005000 			clr	r0	/ set up loop invariant:
+000406	005001			clr	r1    	
+000410	005002			clr	r2    	/   r1r2 == sum of [0, r0)
+000412	020003 		loop:	cmp	r0,r3	/ "while (r0 != n) {"
+000414	0x0304			beq	stop
+000416	060002			add	r0,r2
+000420	005501			adc	r1	/ 	r1r2 == sum of [0, r0]
+000422	005200			inc	r0	/ 	r1r2 == sum of [0, r0)
+000424	0x01FA			br 	loop	/ "}"
+000426	010137		stop:	mov	r1,*$io	/ display high word of sum
+000430	177570
+000432	000000			halt
+000434	010237			mov	r2,*$io	/ display low word of sum
+000436	177570
+000440	000000			halt
+
+The assembler calulates PC-relative offsets at two locations, namely:
+
+at 414: beq instruction
+  stop - (dot+2) = 0426 - 0416  = 010 = 8
+  halve to get word offset: 4
+
+at 424: br instruction
+  loop - (dot+2) = 0412 - 0426 = -014 = -12
+  halve to get word offset: -6
+  8-bit complement: 2^8 - 6 = 0x100 - 6 = 0xFA
+
+Input/Output through the panel:
+Both the switch register and the display register are at 177570. The
+hardware uses the direction of data flow (read vs. write) to choose
+between the two registers. Reading at 177570 selects the switch
+register whereas writing at 177570 selects the display register. The
+panel's switches and lights serve as a model for I/O programming.  You
+access the I/O registers the same way you access memory.  "Memory
+mapped I/O" as it is called, employs ordinary instructions to control
+I/O, saving you the trouble to learn special I/O instructions.  The
+addresses of I/O registers are independent of the program's origin
+which is reflected by employing absolute address modes.
+
+SIMH: On default, addresses are taken as being bus addresses. This
+matters when accessing the I/O page; use the switch "-v" to indicate
+virtual addresses or enter 22-bit bus addresses. Use "e -d dr" to view
+the display register as a decimal number. The command "e -v 177570"
+will not work because SIMH-PDP11, like a real PDP-11, chooses the
+switch register if reading at 0177570.
+
+SIMH: The above machine program is saved in pdp11/progs/sum1.sim as a
+sequence of SIMH commands. To load it, pass the filename via the
+command line to SIMH. The file includes two test runs, one to compute
+sum[0, 100) and one to compute sum[0, 0100000).
+
+SIMH: The switch "-m" of the deposit command makes SIMH look up
+operation codes and calculate PC-relative offsets. See section 2.11
+"Symbolic Display and Input" of its documentation (filed in
+simh/PDP11/pdp11_doc.txt). SIMH uses the character "#" instead of "$"
+and "@" instead of "*".  The "-m" switch is close to what a real
+assembler does, the only thing left are user defined symbols.
+
+
+1.0.3 an I/O program
+--------------------
+In this section you learn how to write programs that access peripheral
+devices, namely the tape drive (TM11/TU10), and the serial line controler
+(KL11), which attaches to a teletype. Consult "PDP-11 Devices" for a
+hardware description. (filed in pdp11/doc/devs).
+
+SIMH: Consult section 2.9 (TM11) in the "PDP-11 Simulator Usage".
+
+Program ltap - load from tape
+This program copies the first block from tape to memory at 0. It
+assumes, that the tape is mounted at load point, i.e., positioned
+before the first block. The program waits until the I/O completes and
+then jumps to 0, thus starting the program just copied. Of course, this
+is meaningful only if the block contains a program with origin 0. This
+is the case with the V6 distribution tape, where the first block
+contains a program that serves to load other programs needed for
+installing Unix on a disk. Ltap's origin is 0100000, so it won't be
+clobbered by the block being copied. The block size is assumed to be
+512 byte, which is the default block size of Unix.
+
+machine	program		assembler program
+addr	contents	
+000000			. = 100000^.
+100000			mtcs=172522	/MT control and status register
+100000			mtc=mtcs+2	/MT byte count register
+100000			mta=mtc+2	/MT memory address register
+100000	005037			clr *$mta
+100002  172526
+100004	012737			mov $177000,*$mtc / complement of 512_10
+100006  177000
+100010	172524
+100012	012737			mov $060003,*$mtcs
+100014	060003
+100016	172522
+100020	105737			loop: tstb *$mtcs	/ wait for completion
+100022	172522			
+100024	0x80FD			bpl loop
+100026	005007			clr pc		/ jump to zero
+
+Run this program with the distribution tape mounted at load point. The
+tape is filed in v6/tapes/dist and ltap in pdp11/progs/ltap.sim. If
+everything works well, the installation program will greet you with the
+"=" prompt. Stop it for now, you'll use it later to install Unix.
+
+Ltap is an example of a "boot" program. Its only purpose is to load
+another program after power on. The first boot program either has to be
+keyed in manually or to be loaded from nonvolatile memory (ROM) by the
+hardware. Since both user time and ROM are expensive, boot programs
+tend to be short. They load a second boot program from the first block
+of a tape or disk to memory at 0. The second boot program is large
+enough, i.e., 512 bytes, to interactively ask the user for the name of
+program, to locate the specified program on tape and load it.
+
+The second boot program communicates with the user via a teletype
+(TTY), which is a keyboard and a printer connected to the PDP-11 by a
+KL11 device as described in "PDP-11 Devices", Section 3.
+
+SIMH: See section 2.2.3 and 2.2.4 for simulator usage of the DL11
+device, which is an advanced version of the KL11.
+
+1.0.4 Programming the TTY
+
+This program reads two decimal digits from the console keyboard and
+prints the product on the console printer. It uses the stack for
+subroutine linkage, so it has to be located out of the yellow area.  To
+provide feedback to the user, every character read from the keyboard
+will be echoed onto the printer, the program prompts with a "*". The
+user is then expected to type the digits and the carriage return key,
+without intervening white space.
+
+machine program		assembler program
+addr	contents	
+			icsr=177560	/ input control and status 
+			ibuf=177562	/ input buffer
+			ocsr=177564	/ output control and status
+			obuf=177566	/ output buffer
+000000			.=400^.
+000400	012706			mov	$160000,sp	/ initialize stack
+000402	160000
+000404	112700		loop:	movb	$'*,r0 / out the prompt 
+000406	000052
+000410	004767			jsr	pc,out
+000412	000114
+000414	004767			jsr	pc,in	/ read first digit
+000416  000124
+000420	012702			mov	$0-'0,r2 / convert from ascii to int
+000422	177720
+000424	060002			add	r0,r2   / r2=first digit
+000426	004767			jsr	pc,in	/ read second digit
+000430	000112
+000432	012703			mov	$0-'0,r3 / convert from ascii to int
+000434	177720
+000436	060003			add	r0,r3	/ r3=second digit
+000440	004767			jsr	pc,in	/ read carriage return
+000442  000100
+000444	012700			mov	$12,r0	/ out line feed
+000446	000012
+000450	004767			jsr	pc,out
+000452	000054
+000454	070203			mul	r3,r2	/ r2=0, r3=r2*r3
+000456	071227			div 	$12,r2	/ r2=high digit, r3=low digit
+000460	000012
+000462	010200			mov	r2,r0	/ convert high dig. to ascii
+000464	062700			add	$'0,r0	/ and out
+000466	000060
+000470	004767			jsr	pc,out
+000472	000034
+000474	010300			mov	r3,r0	/ convert low digit to ascii
+000476	062700			add	$'0,r0	/ and out
+000500  000060
+000502	004767			jsr	pc,out	
+000504  000022
+000506	012700			mov	$12,r0	/ out line feed
+000510	000012
+000512	004767			jsr	pc,out
+000514	000012
+000516	012700			mov	$15,r0	/ out carriage return
+000520	000015
+000522	004767			jsr	pc,out
+000524  000002
+000526	0x01D6			br	loop
+
+000530	105737		out:	tstb	*$ocsr	/ wait until last character
+000532	177564
+000534	0x80FD			bpl	out	/   is sent to the printer
+000536	010037			mov	r0,*$obuf / send this character
+000540	177566
+000542	000207			rts	pc
+
+000544	105737		in:	tstb	*$icsr  / wait until next character
+000546	177560
+000550	0x80FD			bpl	in	/   is sent from the keyboard
+000552	113700			movb	*$ibuf,r0 / in this character
+000554	177562
+000556	004767			jsr	pc,out	/ and print it
+000560  177746
+000562	000207			rts	pc
+
+This program and ltap use a busy loop to wait for the completion of
+I/O, which is signaled by bit 7 in the command and status register.
+This bit happens to be the sign bit of the register's low byte and is
+thus copied to the N flag by the tstb instruction.  Sensing the I/O
+status in a loop is also known as "polling".
+
+Polling is good enough as long as only one program is running, as is
+the case in the booting phase. But this method is not sufficient to
+support a multitasking system like Unix, where interrupts signal the
+completion of I/O commands.
+
+Note that the program continues with other instructions after writing a
+character to the output buffer, rather than waiting for the character
+to be sent to the printer.  The program only waits before writing the
+next character. This technique saves some time, since CPU and device do
+their jobs concurrently.
+
+The program assumes that the printer can print the characters as fast
+as they are sent. This is true with a transmission rate of 110 bits per
+second (BPS) and a printing speed at 10 CPS, since 11 bits are
+transferred per character (1 start, 7 code, 1 parity, 2 stop).
+Carriage return (CR) from the right margin takes more time, and the
+character following CR might be printed while the carriage is still
+returning. This is avoided by sending a line feed (LF) character after
+CR. Line feed does not interfere with carriage movement.  If you
+allways send CR followed by LF, you don't need to worry about breaking
+the printer. This is quite different with higher transmission rates.
+
+The Unix "Command Line Interface" (CLI) is designed for this kind of
+terminals.  You have to keep this in mind when talking to Unix.  For
+example, the printer cannot erase a character or move a cursor.
+Instead, the "DEL" control character just moves the carriage backwards
+by one column. This can be exploited to print two characters at the
+same position.  Overstriking, as it is called, is used by Unix's NROFF
+typesetting system to produce bold typeface or to underscrore
+characters. On video terminals, overstriking means replacing, and
+manual pages rendered by nroff will show the underlines only instead of
+underlined characters.  Fancy pagers like "less" try to emulate
+overstriking in that they switch to bold type when they see a
+"character-backspace-same character" sequence. On a printer, lines
+won't scroll off, so the CLI does not need pagers to pause printing.
+But it is badly needed on video terminals and running ancient Unix on
+those terminals is a pain.  Use a GUI terminal emulator, configured
+with a big scroll buffer, to simulate a printer.
+
+Unix will print a character as soon as it is typed by the user, i.e.,
+it "echoes" the input.  The kernel saves the input characters until it
+reads a CR.  Only then the characters are transferred to a user
+program, like the shell or the editor.  This lets the kernel support
+command line editing: The last character is deleted from the line
+buffer by typing the '#' character, it is called the "erase"
+character.  The "kill"-character, which is '@', deletes all characters
+in the buffer.  But neither '@' nor '#' will erase any characters on
+the display--after all it's a printer.  The backspace character is
+treated as a normal character by Unix to allow effects like
+overstriking.  So, when you type the backspace key, or one of the '#'
+or '@'-characters, the line as seen by Unix differs from what you see
+on the terminal.  If you want to turn off the special meaning of
+characters like '#' and '@', prefix them with "\", the "escape"
+character.
+
+Exercise: What will the kernel send to a user program after typing
+	helbig@ba-stuttgart
+	#include
+What do you need to type to send the intended lines to the user program?
+
+The TTY keyboard has a control key.  It toggles the high bit of the
+character code when pressed together with another key.  If you want to
+send the backspace character (code 010) to the computer, you press the
+control key together with the H key (code 0110).  The control key is
+provided with the same meaning by contemporary terminal emulators.  It
+is needed to send the DEL (code 0177) character, which is CNTL-?  ('?'
+= code 077).  The Unix kernel assigns this character a special meaning
+as the the interrupt character.  It asks Unix to stop the currently
+running program.  Nowadays, the interrupt character is CNTL-C.
+Finally, the CNTL-D character (code 04) will send the current line to
+a user program reading from the terminal.  When the line is empty,
+that is, CNTL-D is typed at the beginning of the line, the user
+program gets zero bytes, which it usually treats as an "End Of File"
+condition.
+
+By the way, the shift key of the ASR keyboard toggels bit 4 of the
+character code when pressed together with a digit-key. So "shift 1"
+('1' = code 061) will send "!" (code 041).  This influenced the layout
+of PC keyboards.  The german one differs only at three keys (shift 3,
+shift 7 and shift 0) from this so called bit-paired layout of the
+ASR-33.
+
+It takes some patience to master command line editing.  But it's worth
+it; up to today, the Unix CLI is considered to be one of the most
+effective ways to interact with a computer.
+
+1.0.5 Reusability of MUL, DIV for unsigned arithmetic.
+The multiplicative instructions interpret their operands as encoded
+integers, that is these instructions provide signed arithmetic. This
+section investigates the reusability of these instructions for unsigned
+arithmetic. Throughout this section, N=2^16 if to be applied for the
+PDP-11.
+
+MUL computes a longword p from to words m and n. Let ps, i and
+j be the integers encoded by p, m and n. Then, because MUL is defined
+to yield the integer product, you get:
+
+(0)	ps = i*j
+
+If MUL worked for unsigned integer, like the additive instructions
+do, then
+
+(1)	p = m*n
+
+must hold. Does it?
+
+Depends on the sign of i and j:
+	a) both nonnegative:			i >= 0, j >= 0
+	b) one negative, one nonnegative:	i <  0, j >= 0
+	c) both negative:			i <  0, j <  0
+Because of symmetry, the case i >= 0, j < 0 is covered by b).
+
+Case a)
+Then m = i, n = j, p = ps and (1) follows from (0). MUL passed Case a).
+
+Case b)
+If j = 0, p = i*j = 0 = m*n, that is, MUL passes.
+If j > 0, you get:
+
+	p = ps+N^2		(p is encoding of ps < 0)
+	  = i*j+N^2		(from (0))
+	  = (m-N)*n + N^2	(i = m-N, j=n)
+	  = m*n + N^2 - n*N
+
+So MUL flunks when one factor is negative and the other positive.
+And we are done. But curiosity lets us analyse the next case:
+
+Case c)
+	p = ps			(ps > 0)
+	  = i*j			(from (0))
+	  = (m-N)*(n-N)		(i=m-N, j=m-N)
+	  = m*n + N^2 - m*N - n*N
+
+Again, MUL flunks, as you might have expected by now. 
+
+But not all is lost! In Case b) and Case c) you might fix p.
+Case b) gives you:
+	p + n*N - N^2 = m*n
+
+How do you add n*N - N^2? Use ADD to add n to the highword of p. This
+will overflow, because p+n*N = m*n + N^2 > N^2. This overflow effects
+the subtraction of N^2 from p.
+
+Case c) is analogously: Add n and m to the highword of p to get m*n.
+
+Fixing is not needed when you are content with the low word of the result,
+for this is (p mod N) = (m*n) mod N as can be seen from the following
+formulas by applying (MOD0):
+
+Case a)	p = m*n + N*0
+Case b) p = m*n + N*(N-n)
+Case c) p = m*n + N*(N-m-n)
+
+Resume:
+	The MUL instruction does not provide unsigned arithmetic. But
+	it can be used to program an unsigned multiplication.
+	If the unsigned result fits in 16 bit, the encoding of the signed
+	product equals the unsigned product.
+
+The DIV instruction divides a word encoded integer, the divisor, into a
+longword encoded integer, the dividend. Both the quotient and the
+remainder are word encoded integers. The DIV instruction, as opposed to
+the div operator of DEF0, rounds towards zero.
+
+CAST:
+i: dividend, in [-N^2/2, N^2/2)	encoded by m in [0, N^2)
+j: divisor,  in [-N/2, N/2)	encoded by n in (0, N)
+
+qs: signed quotient i/j		encoded by q in [0, N)
+rs: signed remainder i%j	encoded by r in [0, N) 
+
+qu: unsigned quotient m/n
+ru: unsigned remainder m%n
+
+DIV computes qs and a rs such that:
+	qs * j + rs  = i	and 	|rs| <= j and sign(rs) = sign(j)
+
+DIVU, the unsigned division, computes qu and ru such that:
+	qu * n + ru = m		and	0 <= ru < n
+
+Note that qs, rs, qu and ru need not necessarily fit in words, that is
+overflow might occur.
+
+Signed division overflows if qs is not in [-N/2, N/2). In that case DIV
+sets the V flag, and the result of DIV is not specified.  DIV sets the C
+flag if the divisor equals zero.
+
+Unsigned division overflows if qu >= N. This is to be indicated by the
+V flag. In that case, the result of DIVU is not specified, i. e.,  need
+not to be computed at all.
+
+With these specifications under our belt, we are ready to investigate
+the reusability of DIV in an implementation of DIVU. Again, we need to
+separate cases according to the sign of the encoded integers.
+
+Case a: m in [0, N^2/2), n in [0, N/2)
+Then i = m, j = n. And q, r are equal the unsigned results, provided
+DIV does not overflow! If m, n are such that DIV might overflow but
+DIVU might not overflow, we cannot use DIV for DIVU. Let sof indicate
+signed overflow and usof unsigned overflow. So we have to check if
+there are m, n such that sof && not usof might hold.
+
+	sof && not usof <=>    qs >= N/2    &&  qu < N
+			<=>  qs*j >= N/2*j  &&  qu*n < N*n
+			<=>  i-rs >= N/2*j  &&  m-ru < N*n
+			<=>  m-ru >= N/2*n  &&  m-ru < N*n
+			<=>  m >= N/2*n+ru  &&  m < N*n+ru
+
+	sof && not usof	 =>  m >= N/2*n	    &&  m < N*n+n
+	sof && not usof	<=   m >= N/2*n+n   &&  m < N*n
+
+The last two lines mean in English:
+If  N/2*n+n <= m and m < N*n , we can be sure that DIV will overflow
+and DIVU will not, i.e. we can be sure that q and r are wrong.
+
+If m < N/2 * n or m >= N*n+n we can be sure that DIV will not overflow
+or DIVU will overflow, i.e. we can be sure that q and r are the
+unsigned results or need not to be computed.
+
+Case b: m in [0, N^2/2), n in [N/2, N).
+Then: i=m, j = n-N, qs <= 0, rs >= 0, and q,r are defined by
+	(N-q)(N-n) + r = m	and 0 <= r < N-n
+
+So q = N - m/(N-n) and r = m%(N-n) which is not what we want!  And
+which doesn't look like it helps us to get what we want either.
+
+How about sof, even though we don't have any use of DIV.
+	sof <=> qs   < -N/2
+	    <=> qs*j > -N/2*j
+	    <=> i    > -N/2*j+rs
+	    <=> m    > N/2*(N-n) + rs,		0 <= rs < N-n
+
+	sof  => m    > N/2*(N-n)
+	sof <=  m    > N/2*(N-n) + N-n
+
+In English:
+If m <= N/2*(N-n) we can be sure, that we don't have signed overflow.
+If m > N/2*(N-n) + N-n we can be sure, that we have signed overflow.
+
+Case c: m in [N^2/2, N^2), n in (0, N/2)
+All values of m and n here cause an unsigned overflow, because
+m >= N^2/2 and N*n+ru <= N*(N/2-1)+N/2-2 = N^2/2 - N/2 -2 < N^2/2, which
+yields m >= N*n+ru, that is usof. 
+
+So in this case, we not only don't want DIV, but we even don't need it!
+
+Case d: m in [N^2/2, N^2), n in [N/2, N).
+Then i=m-N^2, j = n-N, qs >= 0, n-N < rs <= 0. And q, r solve
+	q*(n-N) + r-N = m-N^2, 		n-N < r-N <= 0.
+
+So q = m/(n-N)  and r = N + m%(n-N), again not what we want.
+
+Resume: The results of DIV differ from the results of DIVU. The
+differences are too big to be fixed, as opposed to the situation of MUL
+and MULU.
+
+Now how about confining to 16 bit dividends, that is clearing
+the upper word of the dividend before applying DIV?
+
+Then i = m in [0, N). Since m < N <= N*n, we have no usof.
+Since m < N < N^2/2, only two cases are left depending on n:
+
+Case a, 16 bit: n < N/2.
+Then q and r as delivered by DIV are correct, provided there is
+no sof.
+	sof <=> i - rs >= N/2*j
+	    <=> i >= N/2*j + rs
+For j=1 rs is zero and the right side equals N/2. For j > 1 the right
+side is >= N, but since i < N, there will be no signed overflow.
+
+Result: There is signed overflow if and only if n=1 and m in [N/2, N).
+This can easily tested, and for the other values of m and n, DIVU does
+not differ from DIV.
+
+Case b, 16 bit: n >= N/2.
+Like in the 32 bit case b), DIV cannot be used. But that's not too bad:
+Since m < N, and n >= N/2, qu is easily computed without DIV by:
+	qu = 0 if m < n
+	qu = 1 otherwise.
+
+Resume: Unsigned division of a 16 bit dividend can be implemented by
+DIV with two exceptions:
+	a) divisor = 1
+	b) divisor >= 2^15
+
+In Unix V7 the C language is extended to support unsigned integers.
+The C compiler implemented +, -, *, / and % with the corresponding
+signed instructions.
+
+This is an error for / and %, since the implementation needs to take
+the exceptions a) and b) into account. It looks like this error of the V7
+C compiler went unnoticed to date, showing that unsigned division was
+not used much in V7 C-programs.
+
+Exercise: What will be 60000/40000 and 60000%40000 if V7's C is used?
+
+1.0.6 Unsigned double precision division:
+The DIV instruction only supports word sized divisors, yielding word sized
+quotients and remainders. But sometimes you need to compute a quotient and
+a remainder of a longword dividend and a longword divisor. So let m in
+[0, N^2) be the dividend, n in [N, N^2) be the divisor. We want to compute
+p and r such that
+	m = q*n + r	and 	0 <= r < n
+
+This is a longword equation. We aim at separately solving the high
+word part of the equation.  To this end depart dividend and divisor
+into their high and low words:
+
+	m = mh*N + ml, n = nh*N + nl
+
+Since q <= m/n < N^2/N = N, q fits in a word. With these names,
+the equation reads:
+	mh*N + ml = q*nh*N + q*nl + r
+
+Now, only q*nl + r contributes to both the low and the high word of the
+equation. We separate them by setting
+	s = (q*nl + r) div N; t = (q*nl + r) mod N
+
+Now, the equation reads:
+	mh*N + ml = (q*nh + s)*N + t
+
+And we can solve the high word part:
+	mh = q*nh + s
+
+Unsigned single precision division of nh in mh yields q and s.
+We use these values to compute r from
+	N*s + ml = nl*q + r
+Note, that nl*q is unsigned multiplication of words yielding a longword.
+
+Exercise: The above derivation is wrong. Why? Hint: Try the division with
+N=10, m=22 and n=12 to see that it is wrong.
