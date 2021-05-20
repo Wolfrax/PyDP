@@ -1,8 +1,10 @@
-from asm import as_parse as prs
+import as_parse as prs
 import os
 import fnmatch
 from collections import deque
-import util
+import logging
+import atexit
+import sys
 
 
 class Memory:
@@ -134,13 +136,16 @@ class PSW:
 
 class VM:
     def __init__(self, command):
+        self.logger = logging.getLogger('pyPDP')
+        logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+
         args = command.split(' ')  # Simple parsing
         if args[0] != 'as' and args[0] != 'as2':
             raise Exception("Wrong command: {}".format(args[0]))
 
         if args[0] == 'as':
             src_files = args[2] if args[1] == '-' else args[1]
-            asm_files = 'as1?.s'  # New
+            asm_files = 'as1?.s'
         else:
             src_files = 'as2?.s'
             asm_files = 'as2?.s'
@@ -149,10 +154,16 @@ class VM:
         for filename in os.listdir('.'):
             if fnmatch.fnmatch(filename, src_files):
                 file_list.append(filename)
-
         file_list.sort()
 
         args = args + file_list + ['\x00'] if args[0] == 'as2' else args[:-1] + file_list + ['\x00']
+        atexit.register(self.patch_aout)
+
+        self.logger.info('Start {}'.format(args))
+
+        if os.path.exists("a.out"):
+            self.logger.debug('Deleting a.out file')
+            os.remove("a.out")
 
         asm_list = []
         for filename in os.listdir('.'):
@@ -230,10 +241,13 @@ class VM:
         self.instr_pre_traceQ = deque(maxlen=1000000)
         self.instr_traceQ = deque(maxlen=1000000)
 
-        self.files = {}
+        self.files = {1: 'stdout'}
 
-    def dump_trace(self):
-        with open("trace.txt", "w") as f:
+    def log_level(self, verbose):
+        logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
+
+    def dump_trace(self, trace_fn="trace.txt"):
+        with open(trace_fn, "w") as f:
             header = "{:<8}{:<30}{:<15}{:<15}{:<75}{:<25}".format("lineno", "keyword", "src", "dst",
                                                                   "post instr register values",
                                                                   "post instr PSW")
@@ -260,9 +274,12 @@ class VM:
             if instr.type() == "PseudoOpStmt":
                 if instr.get() in ['.text', '.data', '.bss']:
                     assemble = instr.expr == segment_type
-                elif instr.get() == '.even':
                     if self.location_counter % 2 == 1:  # Odd, adjust so it is even
                         self.location_counter += 1
+                elif instr.get() == '.even':
+                    if assemble and self.location_counter % 2 == 1:  # Odd, adjust so it is even
+                         self.location_counter += 1
+                         self.variables.add(".", self.location_counter)
                 elif instr.get() == '.if':
                     expr = instr.operands.eval(self)
                     if expr == 0:
@@ -376,14 +393,12 @@ class VM:
 
     def current_lineno(self):
         instr_loc = self.mem.read(self.get_PC(), 2)
-        lineno = self.prg.instructions[instr_loc].lineno
-
         return self.prg.instructions[instr_loc].lineno
 
     def get_registers(self):
         result = ""
         for k, v in self.register.items():
-            result += k + ": " + str(hex(v))[2:] + "\t[" + str(v) + "]\n"
+            result += k + ": " + str(v) + " \t"
         return result[:-1]
 
     def dump_registers(self):
@@ -405,3 +420,48 @@ class VM:
         instr.exec(self)
         self.post_trace()
 
+    def patch_aout(self):
+        # This is a cludge...
+        # a.out format expects the first 2 bytes in the file to have a 'magic number', this number can take 3 values:
+        #
+        # 0o407 (0x107): If the magic number (word 0) is 407, it indicates that the text segment is not to be write-
+        #      protected and shared, so the data segment is immediately contiguous with the text segment.
+        #
+        # 0o410 (0x108): If the magic number is 410, the data segment begins at the first 0 mod 8K byte
+        #      boundary following the text segment, and the text segment is not writable by the program;
+        #      if other processes are executing the same file, they will share the text segment.
+        #
+        # 0o411 (0x109): If the magic number is 411, the text segment is again pure, writeprotected, and shared,
+        #      and moreover instruction and data space are separated; the text and data segment both begin at
+        #      location 0.
+        #
+        # In the assembler, this is fixed in pass 2, by using the label "txtmagic", defined as (see as28s):
+        #   txtmagic:
+        # 	    br	.+20
+        #
+        # The instruction 'br' is coded as 0o000400 + offset => 0o000420. This would branch 16 bytes forward, skipping
+        # the header in the file (which is 16 bytes).
+        # Somewhere in the assembler (have not figured out where yet), this is however modified to one of the 3 values.
+        # If an a.out does not start with the magic number, the image will be considered as broken by the OS.
+        #
+        # In the current implementation, the memory position referred by label txtmagic contains the value of an index
+        # where the instruction is stored, not the machine code value. Thus, the a.out file generated will not have
+        # the correct magic value. This is fixed in this patch-method, by simply hardcode the value 0o407 in the first
+        # 2 bytes, in hex with little endian: "07 01"
+
+        txtmagic = "0701"  # 0o407/0x107 in little endian order
+        try:
+            with open("a.out", "r+b") as f:
+                self.logger.debug('Patching a.out with magic number')
+                f.write(bytes.fromhex(txtmagic))
+        except FileNotFoundError:
+            pass
+
+
+if __name__ == '__main__':
+    cmd = ''.join(elem + ' ' for elem in sys.argv[1:]).strip(' ')
+
+    vm = VM(cmd)
+
+    while True:
+        vm.exec()

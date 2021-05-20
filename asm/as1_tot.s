@@ -53,57 +53,57 @@ fpass2:
 	.even
 
 filerr:
-	mov	r4,-(sp)            / push r4 to stack
-	mov	r0,r4               / move r0 -> r4, r0 have address to filename-string
-	mov	r4,0f               / move r4 -> label 0 (sys write below)
-	clr	r0                  / clear r0
+	mov	r4,-(sp)
+	mov	r0,r4
+	mov	r4,0f
+	clr	r0
 1:
-	tstb	(r4)+           / set Z-bit to 1 if (r4) is 0, set N-bit to 1 if (r4) is < 0, increment r4
-	beq	1f                  / branch if Z-bit is zero
-	inc	r0                  / increment r0 with 1, counter for number of characters
-	br	1b                  / branch backward to label 1
+	tstb	(r4)+
+	beq	1f
+	inc	r0
+	br	1b
 1:
-	mov	r0,1f               / move r0 (number of characters) to label 1 (forward)
-	mov	$1,r0               / move $1 -> r0
-	sys	indir; 9f           / make an indirect system call at label 9
+	mov	r0,1f
+	mov	$1,r0
+	sys	indir; 9f
 	.data
-9:	sys	write; 0:0; 1:0     / write to file descriptor in r0 (1 - stdout), from buffer in label 0 (filename), number of bytes in label 1
+9:	sys	write; 0:0; 1:0
 	.text
-	mov	r5,0f               / r5 is pointing to next instruction after jsr ("?\n"), move to label 0
-	mov	$1,r0               / move $1 -> r0
-	sys	indir; 9f           / make an indirect system call at label 9
+	mov	r5,0f
+	mov	$1,r0
+	sys	indir; 9f
 	.data
-9:	sys	write; 0:0; 2       / write for file descriptor in r0 (1 - stdout), from buffer in label 0 ("?\n"), 2 character (\tmp\atm1a?\n)
+9:	sys	write; 0:0; 2
 	.text
-	tst	(r5)+               / test r5 ("?\n"), incr r5 (point to instr following ("?\n")". Clear all status bits
-	mov	(sp)+,r4            / pop saved value back to r4
-	rts	r5                  / return and execute from next statement
+	tst	(r5)+
+	mov	(sp)+,r4
+	rts	r5
 
 fcreat:
-	mov	r4,-(sp)              / move r4 -> sp address - 1
-	mov	(r5)+,r4              / move value pointed from r5 (pointer to a.tmp* string) to r4, increment r5 (next statement)
-	mov	r4,0f                 / move r4 -> label 0 (sys stat below: ..)
+	mov	r4,-(sp)
+	mov	(r5)+,r4
+	mov	r4,0f
 1:
-	sys	indir; 9f             / make an indirect system call at label 9
+	sys	indir; 9f
 	.data
-9:	sys	stat; 0:..; outbuf    / get file status, store in outbuf (as18.s: .=.+512.)
+9:	sys	stat; 0:..; outbuf
 	.text
-	bec	2f                    / (bcc) branch forward if carry (error/C-bit) is clear (no error) to label 2
-	mov	r4,0f                 / mov r4 -> label 0 (sys creat below: ..)
-	sys	indir; 9f             / make an indirect system call at label 9
+	bec	2f
+	mov	r4,0f
+	sys	indir; 9f
 	.data
-9:	sys	creat; 0:..; 444      / create file, name at address at r4 (r4 moved to label 0), mode 444 (read only), file descr in r0
+9:	sys	creat; 0:..; 444
 	.text
-	bes	2f                    / (bcs) branch forward to 2 if carry (error/c-bit) is set, file not created
-	mov	(sp)+,r4              / move referenced value at stack -> r4, increment sp
-	rts	r5                    / set pc <- r5, pop what is on stack and -> r5
+	bes	2f
+	mov	(sp)+,r4
+	rts	r5
 2:
-	incb	9.(r4)            / increment with 1 value (byte) at address r4 + 9, eg r4 -> "/tmp/atm1a" to "/tmp/atm1b"
-	cmpb	9.(r4),$'z        / compare (byte)  value (byte) at address r4 + 9 with $'z
-	blos	1b                / branch, if lower or same, backwards to 1, try with new file name
-	mov	r4,r0                 / r4 -> r0, r4 is address pointer to filename-string
-	jsr	r5,filerr; "?\n       / jump to filerr
-	sys	exit                  / exit program
+	incb	9.(r4)
+	cmpb	9.(r4),$'z
+	blos	1b
+	mov	r4,r0
+	jsr	r5,filerr; "?\n
+	sys	exit
 /
 /
 
@@ -1026,7 +1026,7 @@ advanc:
 	bhis	2f
 	movb	curfbr-141(r4),r0
 	asl	r4
-	mov	curfb-2*141](r4),r2
+	mov	curfb-[2*141](r4),r2
 	bpl	oprand
 	jsr	r5,error; 'f
 	br	oprand
@@ -1566,50 +1566,50 @@ symtab:
 <.comm\0\0\0>;		32;000000
 
 ebsymtab:
-/ Below is following C-paradigm: if (signal(SIGINT, SIG_IGN) != SIG_IGN) signal(SIGINT, aexit)...
-/ See page 126 in The UNIX programming environment, Kernighan/Pike on explanation
+
+
 start:
-	sys	signal; 2; 1      / Disable signal interrupt (2) by using odd (1) label
-	ror	r0                / Old signal interrupt status is returned into r0, rotate right and place bit 0 into carry
-	bcs	1f                / Branch to label 1 if carry is set and skip next 'sys signal' statement
-	sys	signal; 2; aexit  / If we receive an interrupt signal during execution, jump to label aexit
+	sys	signal; 2; 1
+	ror	r0
+	bcs	1f
+	sys	signal; 2; aexit
 1:
-	mov	sp,r5             / stack pointer to r5
-	mov	(r5)+,r0          / move pointed value in r5 (argc) to r0, increase r5 to point to next item on stack (as)
-	cmpb	*2(r5),$'-    / *2(r5): r5+2 -> address to value. cmpb: (r5+2) - $'-, Z-bit set if diff is zero
-	bne	1f                / branch to forward to label 1 if Z-bit is clear, ie (r5+2) not equal to $'-
-	tst	(r5)+             / tst is equivalent of comparing the operand with zero: cmp (r5)+, $0
-	dec	r0                / decrement r0 with 1 (argc -= 1)
-	br	2f                / branch forward to label 2
+	mov	sp,r5
+	mov	(r5)+,r0
+	cmpb	*2(r5),$'-
+	bne	1f
+	tst	(r5)+
+	dec	r0
+	br	2f
 1:
-	clr	unglob            / clear memory for unglob (in as11.s) point at string "<-g/0>" through labels unglob and 3, argument '-' not used -> undefined symbols not global
+	clr	unglob
 2:
-	movb	r0,nargs      / move byte r0 -> nargs (as18.s: nargs: .=.+2)
-	mov	r5,curarg         / move r5 (sp) -> curarg (as18.s: curarg:	.=.+2)
-	jsr	r5,fcreat; a.tmp1 / jump to fcreat (as11.s) to create file a.tmp1. r5 holds a pointer to next statement
-	movb	r0,pof        / move r0 -> pof (as18.s: pof: .=.+1), return value from fcreat in r0 (file descriptor)
-	jsr	r5,fcreat; a.tmp2 / jump to fcreat (as11.s) to create file a.tmp2
-	movb	r0,fbfil      / move byte r0 -> fbfil (as18.s: fbfil: .=.+1)
-	jsr	pc,setup          / jump subroutine setup: push pc to stack and move sp to point there, pc set to pc + 2
-	jmp	go                / jump to go (as11.s)
+	movb	r0,nargs
+	mov	r5,curarg
+	jsr	r5,fcreat; a.tmp1
+	movb	r0,pof
+	jsr	r5,fcreat; a.tmp2
+	movb	r0,fbfil
+	jsr	pc,setup
+	jmp	go
 
 setup:
-	mov	$symtab,r1        / move location of symtab -> r1
+	mov	$symtab,r1
 1:
-	clr	r3                / clear r3
-	mov	$8,r2             / move 8 -> r2 (strings in symtab are 8 char long)
-	mov	r1,-(sp)          / push r1 to stack: move location of symtab to stack
+	clr	r3
+	mov	$8,r2
+	mov	r1,-(sp)
 2:
-	movb	(r1)+,r4      / move (byte) value pointed to by r1 (symtab) -> r4 (<.\0\0\0\0\0\0\0>), increment r1 (next char), z-bit set if (r1) is zero
-	beq	2f                / branch forward to label 2 if z-bit is 1
-	add	r4,r3             / r3 = r4 + r3 (ord(.) + 0)
-	swab	r3            / swap high/low bytes in r3 (. in high byte)
-	sob	r2,2b             / subtract 1 from r2, branch backwards to label 2: if r2 is not zero
+	movb	(r1)+,r4
+	beq	2f
+	add	r4,r3
+	swab	r3
+	sob	r2,2b
 2:
-	clr	r2                / clear r2
-	div	$hshsiz,r2        / divide r2 / $hshsiz (1553), store quotient in r2 and reminder in r3
-	ashc	$1,r2         / arithmetic shift combined, shift left 1 r3 (low word) and r2 (high word)
-	add	$hshtab,r3        / r3 = $hshtab + r3
+	clr	r2
+	div	$hshsiz,r2
+	ashc	$1,r2
+	add	$hshtab,r3
 4:
 	sub	r2,r3
 	cmp	r3,$hshtab

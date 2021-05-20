@@ -1,7 +1,7 @@
 from sly import Parser
-from asm import as_lex as lx
-from asm import as_stmt as stmt
-from asm import as_expr as expr
+import as_lex as lx
+import as_stmt as stmt
+import as_expr as expr
 
 
 class Program:

@@ -15,18 +15,15 @@ class Expression:
         if self.expr.isdigit():
             # This is octal number
             val = int(self.expr.replace("8", "10").replace("9", "11"), 8)
-            #val = util.from_2_compl(val, byte=False)
             return val
 
         if self.expr[:-1].isdigit() and self.expr[-1] == ".":
             # This is a decimal number
             val = int(self.expr[:-1])
-            #val = util.from_2_compl(val, byte=False)
             return val
 
         val = vm.variables.get(self.expr)
         if val is not None:
-            #val = util.from_2_compl(val, byte=False)
             return val
 
         return None
@@ -128,6 +125,12 @@ class Expression:
     def words(self):
         return 0
 
+    def pre_addr_update(self, vm, byte=False):
+        pass
+
+    def post_addr_update(self, vm, byte=False):
+        pass
+
 
 class UnaryExpression:
     def __init__(self, op, expr):
@@ -141,7 +144,7 @@ class UnaryExpression:
         return type(self).__name__
 
     def get(self, vm):
-        return self.expr
+        return self.op + self.expr
 
     def eval(self, vm, byte=False, update=True):
         val = int(self.expr[:-1]) if self.expr[-1] == '.' else int(self.expr.replace("8", "10").replace("9", "11"), 8)
@@ -234,7 +237,7 @@ class Reg:
     def __str__(self):
         return self.reg
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         pass
 
     def set(self, vm, val, byte=False):
@@ -249,12 +252,24 @@ class Reg:
     def reg(self):
         return self.reg
 
+    def pre_addr_update(self, vm, byte=False):
+        pass
+
+    def post_addr_update(self, vm, byte=False):
+        pass
+
+    def pre_dump_update(self, vm, byte=False):
+        pass
+
+    def post_dump_update(self, vm, byte=False):
+        pass
+
 
 class AddrRegister(Reg):
     def __init__(self, reg):
         super().__init__(reg)
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: R, R contains operand
         return vm.register[self.reg]
 
@@ -270,7 +285,7 @@ class AddrRegisterDeferred(Reg):
     def __str__(self):
         return "(" + self.reg + ")"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: (R), R is address
         address = vm.register[self.reg]
         val = vm.mem.read(address, 1 if byte else 2)
@@ -289,18 +304,18 @@ class AddrAutoIncrement(Reg):
     def __str__(self):
         return "(" + self.reg + ")+"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: (R)+, R contains address, then increment (R)
         address = vm.register[self.reg]
-        if update:
-            vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
         val = vm.mem.read(address, 1 if byte else 2)
         return val
 
     def set(self, vm, val, byte=False):
         address = vm.register[self.reg]
         vm.mem.write(address, val, byte)
-        #vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
+
+    def post_addr_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
 
 
 class AddrAutoIncrementDeferred(Reg):
@@ -311,12 +326,10 @@ class AddrAutoIncrementDeferred(Reg):
     def __str__(self):
         return "*(" + self.reg + ")+"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: *(R)+, R contains address of address, increment (R)
         address = vm.register[self.reg]
         address = vm.mem.read(address, 2)
-        if update:
-            vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
         val = vm.mem.read(address, 1 if byte else 2)
         return val
 
@@ -324,7 +337,9 @@ class AddrAutoIncrementDeferred(Reg):
         address = vm.register[self.reg]
         address = vm.mem.read(address, 2)
         vm.mem.write(address, val, byte)
-        #vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
+
+    def post_addr_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
 
 
 class AddrAutoDecrement(Reg):
@@ -335,19 +350,24 @@ class AddrAutoDecrement(Reg):
     def __str__(self):
         return "-(" + self.reg + ")"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: -(R), decrement (R), R contains address
-        vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
         address = vm.register[self.reg]
         val = vm.mem.read(address, 1 if byte else 2)
-        if not update:
-            vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
         return val
 
     def set(self, vm, val, byte=False):
-        #vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
         address = vm.register[self.reg]
         vm.mem.write(address, val, byte)
+
+    def pre_addr_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
+
+    def pre_dump_update(self, vm, byte=False):
+        self.pre_addr_update(vm, byte)
+
+    def post_dump_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
 
 
 class AddrAutoDecrementDeferred(Reg):
@@ -358,21 +378,26 @@ class AddrAutoDecrementDeferred(Reg):
     def __str__(self):
         return "*-(" + self.reg + ")"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: *-(R), decrement R, R contains address
-        vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
         address = vm.register[self.reg]
         address = vm.mem.read(address, 2)
         val = vm.mem.read(address, 1 if byte else 2)
-        if not update:
-            vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
         return val
 
     def set(self, vm, val, byte=False):
-        #vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
         address = vm.register[self.reg]
         address = vm.mem.read(address, 2)
         vm.mem.write(address, val, byte)
+
+    def pre_addr_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] - 1 if byte else vm.register[self.reg] - 2
+
+    def pre_dump_update(self, vm, byte=False):
+        self.pre_addr_update(vm, byte)
+
+    def post_dump_update(self, vm, byte=False):
+        vm.register[self.reg] = vm.register[self.reg] + 1 if byte else vm.register[self.reg] + 2
 
 
 class AddrIndex(Reg):
@@ -388,21 +413,21 @@ class AddrIndex(Reg):
         else:
             return str(self.expr)
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: X(R), (R) + X is address
         # op: A
         if self.reg:
-            address = vm.register[self.reg] + int(self.expr.eval(vm, update=update))
+            address = vm.register[self.reg] + self.expr.eval(vm)
             val = vm.mem.read(address, 1 if byte else 2)
         else:
-            address = self.expr.eval(vm, update=update)
+            address = self.expr.eval(vm)
             val = vm.mem.read(address, 1 if byte else 2)
 
         return val
 
     def eval_address(self, vm, byte=False):
         if self.reg:
-            address = vm.register[self.reg] + int(self.expr.eval(vm))
+            address = vm.register[self.reg] + self.expr.eval(vm)
         else:
             address = self.expr.eval(vm)
 
@@ -410,7 +435,7 @@ class AddrIndex(Reg):
 
     def set(self, vm, val, byte=False):
         if self.reg:
-            address = vm.register[self.reg] + int(self.expr.eval(vm))
+            address = vm.register[self.reg] + self.expr.eval(vm)
         else:
             address = self.expr.eval(vm)
         vm.mem.write(address, val, byte)
@@ -426,10 +451,10 @@ class AddrIndexDeferred(Reg):
     def __str__(self):
         return "*" + str(self.expr) + "(" + self.reg + ")" if self.expr else "*(" + self.reg + ")"
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: *X(R): (X + R) is address to address
         if self.expr:
-            address = int(self.expr.eval(vm)) + vm.register[self.reg]
+            address = self.expr.eval(vm) + vm.register[self.reg]
         else:
             address = vm.register[self.reg]
         address = vm.mem.read(address, 2)
@@ -437,7 +462,7 @@ class AddrIndexDeferred(Reg):
         return val
 
     def set(self, vm, val, byte=False):
-        address = int(self.expr.eval(vm)) + vm.register[self.reg]
+        address = self.expr.eval(vm) + vm.register[self.reg]
         address = vm.mem.read(address, 2)
         vm.mem.write(address, val, byte)
 
@@ -445,7 +470,7 @@ class AddrIndexDeferred(Reg):
         if self.expr is None:
             address = vm.register[self.reg]
         else:
-            address = int(self.expr.eval(vm)) + vm.register[self.reg]
+            address = self.expr.eval(vm) + vm.register[self.reg]
         address = vm.mem.read(address, 2)
         return address
 
@@ -460,7 +485,7 @@ class AddrImmediate(Reg):
     def __str__(self):
         return "$" + str(self.expr)
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: $n, return n
         val = self.expr.eval(vm, byte=byte)
 
@@ -488,9 +513,9 @@ class AddrAbsolute(Reg):
     def __str__(self):
         return "*$" + str(self.expr)
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: *$A, A is address
-        address = self.expr.eval(vm, update=update)[2:]  # Strip leading *$
+        address = self.expr.eval(vm)[2:]  # Strip leading *$
         val = vm.mem.read(address, 1 if byte else 2)
         return val
 
@@ -509,9 +534,9 @@ class AddrRelativeDeferred(Reg):
     def __str__(self):
         return "*" + str(self.expr)
 
-    def eval(self, vm, byte=False, update=True):
+    def eval(self, vm, byte=False):
         # op: *A
-        address = self.expr.eval(vm, update=update)
+        address = self.expr.eval(vm)
         address = vm.mem.read(address, 2)
         val = vm.mem.read(address, 1 if byte else 2)
         return val

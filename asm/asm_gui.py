@@ -1,15 +1,16 @@
 import tkinter as tk
-from asm import vm as vm
-import time
+import asm
+import sys
 
 
 class GUI:
     def __init__(self, root, vm):
+        self.vm = vm
         self.cur_line = vm.current_lineno()
         self.root = root
         self.root.title("PDP 11/40 VM")
 
-        self.break_line = None
+        self.breaklines = [] # None
 
         # The program window
         self.src_title = tk.Label(self.root, text="Source")
@@ -36,6 +37,24 @@ class GUI:
         # Button for executing
         self.go_btn = tk.Button(self.root, text="Go", command=lambda:  self.highlight(step=False))
         self.go_btn.grid(row=3, column=0, sticky=tk.W, padx=75, pady=4)
+
+        # Checkbutton for tracing
+        self.trace_on = True
+        self.trace_checkbtn = tk.BooleanVar(value=self.trace_on)
+        self.check = tk.Checkbutton(root, text='Trace', command=self._trace, variable=self.trace_checkbtn)
+        self.check.grid(row=3, column=0, sticky=tk.W, padx=125)
+
+        self.trace_fn = "trace.txt"
+        self.tracename = tk.StringVar(value=self.trace_fn)
+        self.tracename.trace_add("write", self._trace_name)
+        self.tracename_entry = tk.Entry(root, textvariable=self.tracename)
+        self.tracename_entry.grid(row=3, column=0, sticky=tk.W, padx=200)
+
+        self.verbose = False
+        self.verbose_checkbtn = tk.BooleanVar(value=self.verbose)
+        self.verbose_check = tk.Checkbutton(root, text='Verbose logging', command=self._verbose,
+                                            variable=self.verbose_checkbtn)
+        self.verbose_check.grid(row=3, column=0, sticky=tk.W, padx=300)
 
         # System status
         self.sys_status_title = tk.Label(self.root, text="System status")
@@ -92,12 +111,24 @@ class GUI:
         self.src_txt.tag_configure("current_line", background="#e9e9e9")
         self.src_txt.tag_add("current_line", str(self.cur_line) + ".0", str(self.cur_line) + ".end")
 
+    def _trace(self):
+        self.trace_on = not self.trace_on
+
+    def _trace_name(self, *name):
+        self.trace_fn = self.tracename.get()
+
+    def _verbose(self):
+        self.verbose = not self.verbose
+        self.vm.log_level(self.verbose)
+
     def _on_click(self, event):
-        self.src_txt.tag_remove("highlight", "1.0", "end")
-        self.src_txt.tag_add("highlight", "insert linestart", "insert lineend")
-        current_line = self.src_txt.index(tk.CURRENT)
-        current_line = current_line.split(".")
-        self.break_line = int(current_line[0])
+        current_line = int(self.src_txt.index(tk.CURRENT).split(".")[0])
+        if current_line in self.breaklines:
+            self.src_txt.tag_remove("highlight", "insert linestart", "insert lineend")
+            self.breaklines.remove(current_line)
+        else:
+            self.src_txt.tag_add("highlight", "insert linestart", "insert lineend")
+            self.breaklines.append(current_line)
 
     def _update(self):
         self.src_txt.tag_add("current_line", str(self.cur_line) + ".0", str(self.cur_line) + ".end")
@@ -122,26 +153,22 @@ class GUI:
             self.cur_line = vm.current_lineno()
             self._update()
         else:
-            while self.break_line != self.cur_line:
-                #time.sleep(0)
-                self.src_txt.tag_remove("current_line", str(self.cur_line) + ".0", str(self.cur_line) + ".end")
+            while True:
                 vm.exec()
+                self.src_txt.tag_remove("current_line", str(self.cur_line) + ".0", str(self.cur_line) + ".end")
                 self.cur_line = vm.current_lineno()
-                #self._update()
-
-            self.break_line = None
-            self._update()
-            vm.dump_trace()
+                if self.cur_line in self.breaklines:
+                    self.src_txt.tag_remove("current_line", str(self.cur_line) + ".0", str(self.cur_line) + ".end")
+                    self._update()
+                    if self.trace_on:
+                        vm.dump_trace(trace_fn=self.trace_fn)
+                    break
 
 
 if __name__ == '__main__':
-    #vm = vm.VM("as test.s")
-    # exec: /lib/as2 /lib/as2 /tmp/atm1j /tmp/atm2j /tmp/atm3a [-g]
-    #vm = vm.VM("as as1?.s")
-    vm = vm.VM("as2 /tmp/atm1q /tmp/atm2q /tmp/atm3b")
-    #vm = vm.VM("as2 /tmp/atm1a_ /tmp/atm2a_ /tmp/atm3a_")
-    #vm = vm.VM("as cat.s")
+    cmd = ''.join(elem + ' ' for elem in sys.argv[1:]).strip(' ')
 
     root = tk.Tk()
+    vm = asm.VM(cmd)
     vm_gui = GUI(root, vm)
     root.mainloop()

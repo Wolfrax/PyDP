@@ -1,0 +1,39 @@
+To do:
+- Better GUI
+- Implement break
+- Fix stack (should start at max address)
+
+Notes:
+In temporary file "/tmp/atm1*", the filenames that is assembled is coded in ASCII.
+The string starts with marker '05' and ends with ',-1/ff'. file names can maximum be 20 characters.
+Following the filename, there is a coded symbol table.
+
+The following lines in a14.s, calculate the symbol value:
+
+	sub	$symtab,r3
+	clr	r2
+	div	$3,r2
+	mov	r2,r4
+	add	$1000,r4		/ builtin symbol
+
+symtab have the address 2970, r3 is the address 2994 to the string <r0\0\0\0\0\0\0> (as19.s), thus
+    sub	$symtab,r3: r3 = 2994 - 2970 = 24, the offset from start of symtab
+
+24 (in r3) is then divided by 3, meaning that each coded entry is 4 bytes, so r2 = 8.
+(If the symbol is r1, then r3 at the beginning is address 3006, then calculated to 3006 - 2970 = 36. 36/3 = 12.)
+
+Then we add 512 (octal 1000) to 8 for builtin symbols, so r4 = 512 + 8 = 520. If it is a user symbol, 2048 (octal 4000)
+is added instead of 512 (indicating that the maximum of builtin symbols is (2048 - 512) / 3 = 512 bytes).
+
+The coded value of 520 is written to r4, the added to obufp in putw-code (a12.s). In this code, obufp is incremented
+by 2, so in the file "/tmp/atm1*", the symbol is coded as 2 word == 4 bytes (little endian).
+
+Preceding the code above, a calculation is done to see if the symbol is builtin or a user symbol.
+
+	sub	$8,r3
+	cmp	r3,$usymtab
+	blo	1f
+
+Here, r3 is the address 3002, address 3002 have the value 20 (24 octal), the word following immediately after the string
+<r0\0\0\0\0\0\0> (as19.s). Each string is 8 bytes long. So, r3 = 3002 - 8 = 2994, the address to the beginning of the
+string. If this address is less than the usymtab address, it is a builtin symbol, jumping to the code segment above.

@@ -248,7 +248,7 @@ go:
     data_str26 = """9:	sys	write; 0:0; 1:0"""
     data_str27 = """9:	sys	stat; 0:..; outbuf """
     data_str28 = """02"""
-    with open('as18.s', 'r') as f:
+    with open('src/as18.s', 'r') as f:
         data = f.read()
     lexer = AsLexer()
     for tok in lexer.tokenize(data_str28):
