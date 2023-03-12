@@ -5,6 +5,7 @@ from collections import deque
 import logging
 import atexit
 import sys
+import glob
 
 
 class Memory:
@@ -144,26 +145,15 @@ class VM:
             raise Exception("Wrong command: {}".format(args[0]))
 
         if args[0] == 'as':
-            src_files = args[2] if args[1] == '-' else args[1]
             asm_files = 'as1?.s'
         else:
-            src_files = 'as2?.s'
             asm_files = 'as2?.s'
 
-        file_list = []
-        for filename in os.listdir('.'):
-            if fnmatch.fnmatch(filename, src_files):
-                file_list.append(filename)
-        file_list.sort()
+        args = args[:-1] + ['\x00'] if args[0] == 'as2' else args[:-1] + ['\x00']
 
-        args = args + file_list + ['\x00'] if args[0] == 'as2' else args[:-1] + file_list + ['\x00']
         atexit.register(self.patch_aout)
 
         self.logger.info('Start {}'.format(args))
-
-        if os.path.exists("a.out"):
-            self.logger.debug('Deleting a.out file')
-            os.remove("a.out")
 
         asm_list = []
         for filename in os.listdir('.'):
@@ -186,6 +176,7 @@ class VM:
 
         self.prg_start_address = 0
         self.register['pc'] = self.prg_start_address
+        self.exit = False
 
         self.variables = SymbolTable()
         self.named_labels = SymbolTable()
@@ -459,7 +450,11 @@ class VM:
 
 
 if __name__ == '__main__':
-    cmd = ''.join(elem + ' ' for elem in sys.argv[1:]).strip(' ')
+    if sys.argv[1] == 'as2':
+        cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in sys.argv[2:])
+    else:
+        fnList = sorted(glob.glob(sys.argv[2]))
+        cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
 
     vm = VM(cmd)
 

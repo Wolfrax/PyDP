@@ -63,7 +63,7 @@ class ExpressionStmt(Stmt):
         #   "jsr r5 fcreat; a.tmp1"
         #   a.tmp1 is the ExpressionStmt, which is a label (symbolic name for a location, for example 100)
         #   When jsr is executed, r5 will have the value of a.tmp1 (100). The label can be constructed like this:
-        #   "a.tmp1: </tmp/atm1a\0>" - a string of 11 bytes starting at location 100. Thus a statement following "jsr"
+        #   "a.tmp1: </tmp/atm1a\0>" - a string of 11 bytes starting at location 100. Thus, a statement following "jsr"
         #   like "mov(r5)+,r4", will read the value at location 100 (ie the ordinal value of "/", 1 byte - 47) will be
         #   moved to r4. The location of a label is stored in named_labels or numeric_labels, not written to memory
         #
@@ -481,6 +481,7 @@ class KeywordStmt(Stmt):
             val -= 1
 
             val = util.from_2_compl(val, byte=byte)
+            val = util.from_2_compl(val, byte=byte)
             self.src.set(vm, val, byte=byte)
 
             PSW['N'] = 1 if val < 0 else 0
@@ -540,9 +541,9 @@ class KeywordStmt(Stmt):
 
             if byte:
                 # The manual is ambiguous on byte operation, when general registers is used, byte operates on bit 0 - 7
-                PSW['C'] = (val & msb) << 7
+                PSW['C'] = (val & msb) >> 7
             else:
-                PSW['C'] = (val & msb) << 15
+                PSW['C'] = (val & msb) >> 15
 
             val <<= 1
 
@@ -1098,9 +1099,9 @@ class SyscallStmt(Stmt):
                 val = vm.mem.read(buffer_addr + i, 1)
 
                 if val < 0:
-                    val = util.to_2_compl(val, byte=False)
-                    byte_string.append(val & 0xFF)
-                    byte_string.append((val & 0xFF00) >> 8)
+                    val_2cmpl = util.to_2_compl(val, byte=False)
+                    byte_string.append(val_2cmpl & 0xFF)
+                    byte_string.append((val_2cmpl & 0xFF00) >> 8)
                     flag = True
                 else:
                     byte_string.append(val)
@@ -1278,16 +1279,24 @@ class SyscallStmt(Stmt):
                 args.append(arg_str)
                 arg_names += (arg_str + ' ')
 
-            vm.logger.info('sys exec {} {}'.format(name, arg_names))
-            os.execv(name, args)
+            if 'ASM_EXEC' in os.environ:
+                vm.logger.info('ASM_EXEC ({}), {} {}'.format(os.environ['ASM_EXEC'], name, arg_names))
+            else:
+                vm.logger.info('sys exec {} {}'.format(name, arg_names))
+                os.execv(name, args)
 
             vm.incr_PC()
 
             PSW['C'] = 0
 
         elif self.expr == 'exit':
-            vm.logger.info('sys exit {}'.format(vm.register['r0']))
-            sys.exit(vm.register['r0'] & 0xFF)
+            if 'ASM_EXIT' in os.environ:
+                vm.logger.info('ASM_EXIT ({}), sys exit {}'.format(os.environ['ASM_EXIT'], vm.register['r0']))
+                vm.exit = True
+            else:
+                vm.logger.info('sys exit {}'.format(vm.register['r0']))
+                vm.exit = True
+                sys.exit(vm.register['r0'] & 0xFF)
 
         elif self.expr == 'break':
             # sys break; addr

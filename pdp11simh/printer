@@ -1,0 +1,5 @@
+        rm -f /etc/mtab
+        /etc/update
+        /etc/mount /dev/rk1 /usr/source
+        /etc/mount /dev/rk2 /usr/doc
+

@@ -1,4 +1,6 @@
-import asm.aout
+from enum import IntEnum
+import argparse
+import sys
 
 
 class InstrLUT:
@@ -123,10 +125,6 @@ class InstrLUT:
             0o005600: 'SBC',   #
             0o006700: 'SXT'    #
         }
-        self.test = {}
-        for k, v in self.singleOp.items():
-            for val in range(k, k + 0o100):
-                self.test[val] = v
 
         Op.update(self.singleOp)
 
@@ -151,7 +149,7 @@ class InstrLUT:
         }
         Op.update(self.doubleOp)
 
-        self.prgCntrlOp = {
+        self.branchOp = {
             0o000400: 'BR',    #
             0o001000: 'BNE',   #
             0o001400: 'BEQ',   #
@@ -166,13 +164,21 @@ class InstrLUT:
             0o003000: 'BGT',   #
             0o003400: 'BLE',   #
             0o101000: 'BHI',   #
-            0o101400: 'BLOS',  #
+            0o101400: 'BLOS'   #
+        }
+        Op.update(self.branchOp)
+
+        self.sysOp = {
+            0o104400: 'SYS'    # TRAP
+        }
+        Op.update(self.sysOp)
+
+        self.prgCntrlOp = {
             0o000100: 'JMP',   #
             0o004000: 'JSR',   #
             0o000200: 'RTS',   #
             0o006400: 'MARK',  #
             0o077000: 'SOB',   #
-            0o104400: 'SYS',   # TRAP
             0o000003: 'BPT',   #
             0o000004: 'IOT',   #
             0o000002: 'RTI',   #
@@ -236,16 +242,22 @@ class InstrLUT:
             0o0000060: 'signal'
         }
 
-    def isSingleOp(self, op):
+    def isSingle(self, op):
         return op in self.singleOp.values()
 
-    def isDoubleOp(self, op):
+    def isDouble(self, op):
         return op in self.doubleOp.values()
 
-    def isPrgCntrlOp(self, op):
+    def isBranch(self, op):
+        return op in self.branchOp.values()
+
+    def isSys(self, op):
+        return op in self.sysOp.values()
+
+    def isPrgCntrl(self, op):
         return op in self.prgCntrlOp.values()
 
-    def isMiscOp(self, op):
+    def isMisc(self, op):
         return op in self.miscOp.values()
 
     def get(self, word):
@@ -254,16 +266,7 @@ class InstrLUT:
             if bits in ops:
                 return self.Op[bits]
 
-#        for mask in self.Masks:
-#            ind = word & mask
-#            if ind != 0 and ind in self.Op:
-#                return self.Op[ind]
-
-#        if word in self.Op:
-#            return self.Op[word]
-
         return None
-        #return self.Op[max([i for i in self.Op if i <= word])]
 
     def get_syscall(self, word):
         return self.syscall[word]
@@ -276,29 +279,29 @@ class Head:
 
         self.size = len(data)  # bytes
         header = [(data[i + 1] << 8) | data[i] for i in range(0, self.size, 2)]
+        if header[0] not in [0o407, 0o410, 0o411]:
+            print(f"Wrong magic number: {header[0]:#o}")
+            sys.exit(0)
 
-        self.magic = header[0]
-        self.txt = header[1]
-        self.data = header[2]
-        self.bss = header[3]
-        self.sym = header[4]
-        self.entry_loc = header[5]
-        self.unused = header[6]
-        self.reloc = header[7]
+        self.head = {'magic': header[0], 'txt': header[1], 'data': header[2], 'bss': header[3],
+                     'sym': header[4], 'entry': header[5], 'unused': header[6], 'reloc': header[7]}
 
-    def dump(self):
-        print("magic: {}, text size: {}, data size: {}, bss size: {}, symbol table size: {}, "
-              "entry location: {}, unused: {}, relocation flag: {}".format(self.magic,
-                                                                           self.txt,
-                                                                           self.data,
-                                                                           self.bss,
-                                                                           self.sym,
-                                                                           self.entry_loc,
-                                                                           self.unused,
-                                                                           self.reloc))
+    def __str__(self):
+        s = ""
+        for k, v in self.head.items():
+            s += f"{v:#06o} [{v:06}]: {k}\n"
+        return s
+
+    def get(self, key):
+        if key in self.head:
+            return self.head[key]
+        else:
+            return None
 
 
 class Symbol:
+    types = {0: 'u', 1: 'a', 2: 't', 3: 'd', 4: 'b', 31: 'F', 32: 'U', 33: 'A', 34: 'T', 35: 'D', 36: 'B'}
+
     def __init__(self, data):
         sym = ''
         for i in range(8):
@@ -306,11 +309,15 @@ class Symbol:
             if ch != 0:
                 sym += chr(ch)
         self.name = sym
+
         self.type = data[9] << 8 | data[8]
+        self.type_str = Symbol.types[self.type] if self.type in Symbol.types else str(self.type)
+
         self.val = data[11] << 8 | data[10]
 
-    def dump(self):
-        print("{} (type: {}, val: {})".format(self.name, self.type, self.val))
+
+    def __str__(self):
+        return f"{self.val:#08o} [{self.val:08}] {self.type_str:>8} {self.name:>8}"
 
 
 class SymTable:
@@ -323,210 +330,452 @@ class SymTable:
             self.table[sym.val] = sym
             ind += 12
 
-    def dump(self):
+    def __str__(self):
+        headers = ["Sym val", "Type", "Name"]
+        s = f"{headers[0]:^19} {headers[1]:>9} {headers[2]:>7}\n"
+        s += len(s[1:])*"=" + "\n"
         for key in self.table:
-            self.table[key].dump()
+            s += (str(self.table[key]) + "\n")
+        return s[:-1]
 
-    def find_val(self, val):
+    def find(self, val):
         for sym in self.table.values():
             if sym.val == val:
                 return sym.name
+        return None
 
 
-class SyscallInstr:
-    def __init__(self, data):
-        self.syscall = instrLUT.get_syscall(((data[1] << 8) | data[0]) & 0o77)
-        #self.syscall = instrLUT.get_syscall(((data[1] << 8) | data[0]))
+class AddrMode(IntEnum):
+    REGISTER = 0
+    REGISTER_DEFERRED = 1
+    AUTOINCREMENT = 2
+    AUTOINCREMENT_DEFERRED = 3
+    AUTODECREMENT = 4
+    AUTODECREMENT_DEFERRED = 5
+    INDEX = 6
+    INDEX_DEFERRED = 7
 
-        if self.syscall in ['exit', 'fork', 'close', 'wait', 'time', 'getpid', 'setuid', 'getuid', 'stime', 'fstat',
-                            'mdate', 'nice']:
-            self.par = []
-        elif self.syscall in ['indir', 'unlink', 'chdir', 'break', 'umount', 'stty', 'gtty']:
-            self.par = [(data[3] << 8) | data[2]]
-        elif self.syscall in ['read', 'write', 'open', 'creat', 'link', 'exec', 'chmod', 'chown', 'stat', 'seek',
-                              'signal']:
-            self.par = [(data[3] << 8) | data[2], (data[5] << 8) | data[4]]
-        elif self.syscall in ['makdir', 'mount']:
-            self.par = [(data[3] << 8) | data[2], (data[5] << 8) | data[4], (data[7] << 8) | data[6]]
 
-        self._size = len(self.par) * 2
-        if self.syscall == 'gtty':
-            self._size += 4
+class Operand:
+    def __init__(self, reg):
+        self.reg = reg
+        self.size = 0
+        self.addr = None
+        self.name = None
 
-    def size(self):
-        return self._size
+    def get_addr(self):
+        return self.addr
+
+    def set_name(self, name):
+        self.name = name
+
+    def __str__(self):
+        pass
+
+
+class OpReg(Operand):
+    def __init__(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("R" + str(self.reg))
+
+
+class OpRegDef(Operand):
+    def __init(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("(R" + str(self.reg) + ")")
+
+
+class OpAutoIncr(Operand):
+    def __init__(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("(R" + str(self.reg)+ ")+")
+
+
+class OpAutoIncrDef(Operand):
+    def __init__(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("*(R" + str(self.reg) + ")+")
+
+
+class OpAutoDecr(Operand):
+    def __init__(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("-(R" + str(self.reg) + ")")
+
+
+class OpAutoDecrDef(Operand):
+    def __init__(self, reg):
+        super().__init__(reg)
+
+    def __str__(self):
+        return "{:>8}".format("*-(R" + str(self.reg) + ")")
+
+
+class OpIndex(Operand):
+    def __init__(self, reg, data, pc):
+        super().__init__(reg)
+        self.size = 2
+        self.name = None
+
+        self.addr = (data[pc + 3] << 8) | data[pc + 2]
+        if self.reg == 7:
+            self.addr += (pc + 4)
+
+    def __str__(self):
+        name = self.name if self.name else str(self.addr)
+
+        if self.reg == 7:
+            return "{:>8}".format(name)
+        else:
+            return "{:>8}".format(name + "(R" + str(self.reg) + ")")
+
+
+class OpIndexDef(Operand):
+    def __init__(self, reg, data, pc):
+        super().__init__(reg)
+        self.size = 2
+        self.name = None
+
+        self.addr = (data[pc + 3] << 8) | data[pc + 2]
+        if self.reg == 7:
+            self.addr += (pc + 4)
+
+    def __str__(self):
+        name = self.name if self.name else str(self.addr)
+
+        if self.reg == 7:
+            return "{:>8}".format("*" + name)
+        else:
+            return "{:>8}".format("*" + name + "(R" + str(self.reg) + ")")
+
+
+class OpImmediate(Operand):
+    def __init__(self, reg, data, pc):
+        super().__init__(reg)
+        self.size = 2
+        self.name = None
+
+        self.addr = (data[pc + 3] << 8) | data[pc + 2]
+
+    def __str__(self):
+        name = self.name if self.name else str(self.addr)
+        return "{:>8}".format("$" + name)
+
+
+class OpAbsolute(Operand):
+    def __init__(self, reg, data, pc):
+        super().__init__(reg)
+        self.size = 2
+        self.name = None
+
+        self.addr = (data[pc + 3] << 8) | data[pc + 2]
+
+    def __str__(self):
+        name = self.name if self.name else str(self.addr)
+        return "{:>8}".format("*$" + name)
 
 
 class Instr:
-    def __init__(self, data, pc):
-        self.word = (data[1] << 8) | data[0]
+    def __init__(self, op, data, pc):
+        self.op = op
+        self.src_op = None
+        self.dst_op = None
         self.pc = pc
-
-        self.op = None
-
-        self.src_index = None
-        self.src_mode = None
-        self.src_reg = None
-
-        self.dst_index = None
-        self.dst_mode = None
-        self.dst_reg = None
-
-        self.syscall = None
-
-        self.size = None
-
-        op = instrLUT.get(self.word)
-        if op:
-            self.op = op
-            self.size = 2
-
-            if instrLUT.isSingleOp(op):
-                self.dst_mode = (self.word & 0o70) >> 3
-
-                if self._is_index_mode(self.dst_mode):
-                    self.dst_index = (data[3] << 8) | data[2]
-                self.dst_reg = self.word & 0o7
-                self.size += self._size(self.dst_mode, self.dst_reg)
-            elif instrLUT.isDoubleOp(op):
-                self.src_mode = (self.word & 0o7000) >> 9
-                self.src_reg = (self.word & 0o700) >> 6
-                self.dst_mode = (self.word & 0o70) >> 3
-                self.dst_reg = self.word & 0o7
-
-                if self._is_index_mode(self.src_mode):
-                    self.src_index = (data[3] << 8) | data[2]
-
-                if self._is_index_mode(self.dst_mode):
-                    self.dst_index = (data[5] << 8) | data[4]
-
-                self.size += (self._size(self.src_mode, self.src_reg) +
-                              self._size(self.dst_mode, self.dst_reg))
-            elif instrLUT.isPrgCntrlOp(op):
-                if op == 'SYS':
-                    self.syscall = SyscallInstr(data[0:])
-                    self.size += self.syscall.size()
-                else:
-                    self.dst_mode = (self.word & 0o70) >> 3
-
-                    if self._is_index_mode(self.dst_mode):
-                        self.dst_index = (data[3] << 8) | data[2]
-                    self.dst_reg = self.word & 0o7
-                    self.size += self._size(self.dst_mode, self.dst_reg)
-                if op == 'JSR':
-                    self.src_reg = (self.word & 0o700) >> 6
-                    self.src_mode = 0
-
-    def dump(self):
-        if self.op:
-            op_src = self._op_str(self.src_reg, self.src_mode, self.src_index)
-            op_dst = self._op_str(self.dst_reg, self.dst_mode, self.dst_index)
-            if self.syscall is not None:
-                syscall = self.syscall.syscall
-            else:
-                syscall = ""
-            return self.op + 2 * "\t" + syscall +"\t" + op_src + "\t" + op_dst
-
-        else:
-            return None
-
-    def _op_str(self, reg, mode, index):
-        if mode == 0:
-            return "R" + str(reg)
-        elif mode == 1:
-            return "(R" + str(reg) + ")"
-        elif mode == 2:
-            if reg <= 6:
-                return "(R" + str(reg) + ")+"
-            else:
-                return "$" + str(index)
-        elif mode == 3:
-            if reg <= 6:
-                return "*(R" + str(reg) + ")+"
-            else:
-                return "*$R" + str(reg)
-        elif mode == 4:
-            return "-(R" + str(reg) + ")"
-        elif mode == 5:
-            return "*-(R" + str(reg) + ")"
-        elif mode == 6:
-            if reg <= 6:
-                return str(index) + "(R" + str(reg) + ")"
-            else:
-                index_name = asm.aout.SymTable.find_val(aout.sym_table, index + self.pc + 4)
-                if index_name is not None:
-                    return index_name + " (" + str(index + self.pc + 4) + ")"
-                else:
-                    return str(index + self.pc + 4)
-
-        elif mode == 7:
-            if reg <= 6:
-                return "*" + str(index) + "(R" + str(reg) + ")"
-            else:
-                return "*" + str(index + self.pc + 4)
-        else:
-            return ""
+        self.word = (data[pc + 1] << 8) | data[pc]
+        self.size = 2
+        self.mode = None
 
     @staticmethod
-    def _size(mode, reg):
-        if mode is None or reg is None:
-            return 0
-
-        if mode >= 6 and reg <= 6:
-            return 2
-        elif mode <= 3 and reg == 7:
-            return 2
-        elif mode >= 6 and reg == 7:
-            return 2
+    def new_operand(mode, reg, data, pc):
+        if mode == AddrMode.REGISTER:
+            return OpReg(reg)
+        elif mode == AddrMode.REGISTER_DEFERRED:
+            return OpRegDef(reg)
+        elif mode == AddrMode.AUTOINCREMENT:
+            return OpImmediate(reg, data, pc) if reg == 7 else OpAutoIncr(reg)
+        elif mode == AddrMode.AUTOINCREMENT_DEFERRED:
+            return OpAbsolute(reg, data, pc) if reg == 7 else OpAutoIncrDef(reg)
+        elif mode == AddrMode.AUTODECREMENT:
+            return OpAutoDecr(reg)
+        elif mode == AddrMode.AUTODECREMENT_DEFERRED:
+            return OpAutoDecrDef(reg)
+        elif mode == AddrMode.INDEX:
+            return OpIndex(reg, data, pc)
+        elif mode == AddrMode.INDEX_DEFERRED:
+            return OpIndexDef(reg, data, pc)
         else:
-            return 0
+            assert False, "Wrong mode"
 
-    @staticmethod
-    def _is_index_mode(mode):
-        return mode >= 6
+    def __str__(self):
+        pass
+
+
+class InstrAddr(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+    def __str__(self):
+        return "{:<8}".format(self.op)
+
+
+class InstrSingle(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+        self.dst_mode = (self.word & 0o0070) >> 3
+        self.dst_reg  = (self.word & 0o0007)
+        self.dst_op = self.new_operand(self.dst_mode, self.dst_reg, data, pc)
+
+        self.size += self.dst_op.size
+
+    def __str__(self):
+        return "{:<8} {:>8}".format(self.op, str(self.dst_op))
+
+
+class InstrDouble(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+        self.src_mode = (self.word & 0o7000) >> 9
+        self.src_reg  = (self.word & 0o0700) >> 6
+        self.dst_mode = (self.word & 0o0070) >> 3
+        self.dst_reg  = (self.word & 0o0007)
+
+        self.src_op = self.new_operand(self.src_mode, self.src_reg, data, pc)
+        self.dst_op = self.new_operand(self.dst_mode, self.dst_reg, data, pc + 2)
+
+        if (self.dst_mode == AddrMode.INDEX or self.dst_mode == AddrMode.INDEX_DEFERRED) and \
+            (self.src_mode == AddrMode.INDEX or self.src_mode == AddrMode.INDEX_DEFERRED):
+            self.src_op.addr += 2
+
+        self.size += (self.src_op.size + self.dst_op.size)
+
+    def __str__(self):
+        return "{:<8} {:>8}, {:>8}".format(self.op, str(self.src_op), str(self.dst_op))
+
+
+class InstrBranch(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+        self.offset = self.word & 0o0377
+        self.name = None
+
+    def __str__(self):
+        return "{:<8} {:>8}".format(self.op, self.offset if self.name is None else self.name)
+
+
+class InstrSyscall(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+        self.syscall = instrLUT.get_syscall(((data[pc + 1] << 8) | data[pc]) & 0o0077)
+
+        if self.syscall in ['exit', 'fork', 'close', 'wait', 'time', 'getpid',
+                            'setuid', 'getuid', 'stime', 'fstat', 'mdate', 'nice']:
+            self.par = []
+
+        elif self.syscall in ['indir', 'unlink', 'chdir', 'break', 'umount', 'stty', 'gtty']:
+            self.par = [
+                {'addr': (data[pc + 3] << 8) | data[pc + 2], 'name': None}
+            ]
+
+        elif self.syscall in ['read', 'write', 'open', 'creat', 'link', 'exec',
+                              'chmod', 'chown', 'stat', 'seek', 'signal']:
+            self.par = [
+                {'addr': (data[pc + 3] << 8) | data[pc + 2], 'name': None},
+                {'addr': (data[pc + 5] << 8) | data[pc + 4], 'name': None}
+            ]
+
+        elif self.syscall in ['makdir', 'mount']:
+            self.par = [
+                {'addr': (data[pc + 3] << 8) | data[pc + 2], 'name': None},
+                {'addr': (data[pc + 5] << 8) | data[pc + 4], 'name': None},
+                {'addr': (data[pc + 7] << 8) | data[pc + 6], 'name': None}
+            ]
+
+        self.size += len(self.par) * 2
+        if self.syscall == 'gtty':
+            self.size += 4
+
+    def __str__(self):
+        par_str = ""
+        for par in self.par:
+            par_str += "{:>8}".format(par['name'] if par['name'] is not None else par['addr'])
+
+        return "{:<8} {:>8}{} {:>8}".format(self.op, self.syscall, ";" if par_str != "" else "", par_str)
+
+
+class InstrPrgCntrl(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+        self.dst_mode = (self.word & 0o0070) >> 3
+        self.dst_reg  = (self.word & 0o0007)
+        self.dst_op = self.new_operand(self.dst_mode, self.dst_reg, data, pc)
+
+        self.src_mode = 0
+        if op == 'JSR':
+            self.src_reg  = (self.word & 0o700) >> 6
+        else:
+            self.src_reg = 0
+
+        self.src_op = self.new_operand(self.src_mode, self.src_reg, data, pc)
+        self.size += self.dst_op.size
+
+    def __str__(self):
+        if self.op == 'JSR':
+            return "{: <8} {: >8}, {: >8}".format(self.op, str(self.src_op), str(self.dst_op))
+        else:
+            return "{:<8} {:>8}".format(self.op, str(self.dst_op))
+
+
+class InstrMisc(Instr):
+    def __init__(self, op, data, pc):
+        super().__init__(op, data, pc)
+
+    def __str__(self):
+        return "{:<8}".format(self.op)
 
 
 class Text:
-    def __init__(self, data):
+    def __init__(self, data, sym_table):
+        self.sym_table = sym_table
         self.instr = []
-        i = 0
-        while i < len(data):
-            instr = Instr(data[i:], i)
-            if instr.op is not None:
-                i += instr.size
-                self.instr.append(instr)
+        self.data = data
+        pc = 0
+        while pc < len(self.data):
+            instr = self.decode(self.data, pc)
+            if instr:
+                self.instr.append({'addr': pc, 'instr': instr})
+                pc += instr.size
             else:
-                i += 2
+                pc += 2
 
-    def dump(self):
-        pos = 0
+    def decode(self, data, pc):
+        word = (data[pc + 1] << 8) | data[pc]
+
+        sym = self.sym_table.find(word)
+        if sym:
+            return InstrAddr(sym, data, pc)
+
+        op = instrLUT.get(word)
+        if op:
+            if instrLUT.isSingle(op):
+                instr = InstrSingle(op, data, pc)
+                instr.dst_op.set_name(self.sym_table.find(instr.dst_op.get_addr()))
+                return instr
+
+            elif instrLUT.isDouble(op):
+                instr = InstrDouble(op, data, pc)
+                instr.src_op.set_name(self.sym_table.find(instr.src_op.get_addr()))
+                instr.dst_op.set_name(self.sym_table.find(instr.dst_op.get_addr()))
+                return instr
+
+            elif instrLUT.isBranch(op):
+                instr = InstrBranch(op, data, pc)
+                instr.name = self.sym_table.find(2 * instr.offset + (pc + 2))
+                return instr
+
+            elif instrLUT.isSys(op):
+                instr = InstrSyscall(op, data, pc)
+                for par in instr.par:
+                    par['name'] = self.sym_table.find(par['addr'])
+                return instr
+
+            elif instrLUT.isPrgCntrl(op):
+                instr = InstrPrgCntrl(op, data, pc)
+                instr.src_op.set_name(self.sym_table.find(instr.src_op.get_addr()))
+                instr.dst_op.set_name(self.sym_table.find(instr.dst_op.get_addr()))
+                return instr
+
+            elif instrLUT.isMisc(op):
+                return InstrMisc(op, data, pc)
+
+            else:
+                return None
+
+    def __str__(self):
+        s  = ""
+        spaces = 8 * " "
         for instr in self.instr:
-            dump_str = instr.dump()
-            if dump_str:
-                print(str(pos) + ":\t" + dump_str)
-            pos += instr.size
+            word_str = f"{instr['instr'].word:#08o}"
+
+            if instr['instr'].src_op:
+                src_op_str = f"{instr['instr'].src_op.addr:0<#8o}" if instr['instr'].src_op.addr else spaces
+            else:
+                src_op_str = spaces
+
+            if instr['instr'].dst_op:
+                dst_op_str = f"{instr['instr'].dst_op.addr:0>#8o}" if instr['instr'].dst_op.addr else spaces
+            else:
+                dst_op_str = spaces
+
+            and_str = 3 * " "
+            if src_op_str and dst_op_str:
+                if src_op_str != spaces and dst_op_str != spaces:
+                    and_str = " & "
+
+            word_str += (": " + src_op_str + and_str + dst_op_str)
+            s += f"{instr['addr']:0<#8o} [{instr['addr']:0>8}] -> {{{word_str: <29}}} => {str(instr['instr']): <50}" + "\n"
+        return s
 
 
-class Aout:
+class PDP:
+    def __init__(self):
+        self.REG = {'R0': 0, 'R1': 0, 'R2':0, 'R3': 0, 'R4': 0, 'R5': 0, 'R6': 0, 'R7': 0}
+        self.PSW = {'N': 0, 'Z': 0, 'v': 0, 'C': 0}
+        self.PC = 0
+        self.mem = [0] * (64 * 1024)  # 64kB of Memory, initialized to zero
+        self.mem_break = 0
+
+    def init_mem(self, data):
+        self.mem[self.mem_break:self.mem_break + len(data)] = data
+        self.mem_break += len(data)
+
+
+class AOut:
     def __init__(self, name):
         self.name = name
         with open(self.name, 'rb') as f:
-            self.data = f.read()
+            bytes = f.read()
 
-        self.head = Head(self.data[0:16])
+        self.head = Head(bytes[0:16])
 
-        self.text = Text(self.data[16:self.head.txt])
+        sym_start = self.head.size + (1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data'))
+        self.sym_table = SymTable(bytes[sym_start:sym_start + self.head.get('sym')])
 
-        sym_start = self.head.size + (1 if self.head.reloc else 2) * (self.head.txt + self.head.data)
-        self.sym_table = SymTable(self.data[sym_start:sym_start + self.head.sym])
+        self.text = Text(bytes[16:self.head.get('txt')], self.sym_table)
 
     def dump(self):
-        self.head.dump()
-        self.sym_table.dump()
-        self.text.dump()
+        print(self.head)
+        print(self.sym_table)
+        print(2*"\n" + "--X--" + 2*"\n")
+        print(self.text)
 
 
 if __name__ == '__main__':
+    ### ABC ###
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file', type=str, required=True)
+    args = parser.parse_args()
+
     instrLUT = InstrLUT()
-    aout = Aout('a1.out')
+    aout = AOut(args.file)
+
+    #pdp = PDP()
+    #pdp.init_mem(aout.text.data)
+    #pdp.init_mem((aout.))
     aout.dump()
+
+    ### ABC ###

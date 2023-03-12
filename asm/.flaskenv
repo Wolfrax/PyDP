@@ -1,0 +1,2 @@
+FLASK_APP=asm_api_server.py
+FLASK_ENV=development

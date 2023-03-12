@@ -1,0 +1,125 @@
+disamble a1.out build by Python
+disambling done on SIMH PDP11
+===============================
+,20?
+jmp ebsymtab
+jsr pc,assem
+movb pof,r0
+sys write;outbuf;assem+236
+movb pof,r0
+sys close
+movb fbfil,r0
+sys close
+tstb errflg
+bne aexit
+jsr r5,fcreat
+adc dotdot+2175
+mov symend,chartab+204
+sub $usymtab,chartab+204
+sys rele
+neg -(r4)
+?,60
+neg -(r4)
+?,20?
+neg -(r4)
+,60?
+neg -(r4)
+mov r1,r0
+sys close
+sys exec;fpass2;chartab+206
+mov $fpass2,r0
+jsr r5,filerr
+clr *104534
+adc -(r1)
+sys unlink;a.tmp2
+sys unlink;a.tmp3
+sys exit
+add 61151(r0),*-(pc)
+add r4,*-(pc)
+bit (r1),26400(r3)
+jmp -(pc)
+mov r4,-(sp)
+mov r0,r4
+mov r4,unglob+6
+clr r0
+tstb (r4)+
+beq filerr+22
+inc r0
+br filerr+12
+mov r0,unglob+10
+mov $eae+1,r0
+sys rele
+neg dotdot+2707(sp)
+inc setup+570(r2)
+wait
+sys rele
+neg *dotdot+45(r4)
+mov (sp)+,r4
+rts r5
+mov r4,-(sp)
+mov (r5)+,r4
+mov r4,unglob+22
+sys rele
+adc r2
+bhis fcreat+34
+mov r4,unglob+30
+sys rele
+adc (r0)
+blo fcreat+34
+mov (sp)+,r4
+rts r5
+incb go+5(r4)
+cmpb go+5(r4),$filerr+20
+blos fcreat+10
+
+
+disamble /bin/as on SIMH PDP11
+==============================
+jsr pc,542
+movb 33530,r0
+sys write;33552;1000
+movb 33530,r0
+sys close
+movb 33533,r0
+sys close
+tstb 33535
+bne 120
+jsr r5,232
+cmp r1,(r3)+
+mov r0,r1
+mov 20164,20004
+sub $34600,20004
+sys rele
+cmp r0,r0
+mov r1,r0
+sys close
+sys exec;136;20006
+mov $136,r0
+jsr r5,152
+clr *104534
+cmp r0,*104412(r5)
+cmp r1,(r0)
+sys unlink;20123
+sys exit
+add 61151(r0),*-(pc)
+add r4,*-(pc)
+bit (r1),26400(r3)
+jmp -(pc)
+mov r4,-(sp)
+mov r0,r4
+mov r4,20024
+clr r0
+tstb (r4)+
+beq 174
+inc r0
+br 164
+mov r0,20026
+mov $1,r0
+sys rele
+cmp r0,(r2)+
+mov r5,20032
+mov $1,r0
+sys rele
+cmp r0,*(r0)+
+tst (r5)+
+mov (sp)+,r4
