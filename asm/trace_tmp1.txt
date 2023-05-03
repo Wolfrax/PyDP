@@ -1,0 +1,15 @@
+478:    bic $!177, r0                 src: 65408     dst: 0         r0: 0 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1090                  N: 0 Z: 1 V: 0 C: 0
+479:    beq 1b                        src: 994                      r0: 0 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1072                  N: 0 Z: 1 V: 0 C: 0
+474:    dec inbfcnt                   src: 65486                    r0: 0 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1076                  N: 0 Z: 0 V: 0 C: 0
+475:    blt 2f                        src: 1010                     r0: 0 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1078                  N: 0 Z: 0 V: 0 C: 0
+476:    movb *inbfp, r0               src: 36        dst: 0         r0: 36 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1082                 N: 0 Z: 0 V: 0 C: 0
+477:    inc inbfp                     src: 50                       r0: 36 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1086                 N: 0 Z: 0 V: 0 C: 0
+478:    bic $!177, r0                 src: 65408     dst: 36        r0: 36 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1090                 N: 0 Z: 0 V: 0 C: 0
+479:    beq 1b                        src: 994                      r0: 36 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65498 pc: 1092                 N: 0 Z: 0 V: 0 C: 0
+480:    rts pc                        src: 1092                     r0: 36 r1: 0 r2: 0 r3: 0 r4: 0 r5: 2492 sp: 65500 pc: 1276                 N: 0 Z: 0 V: 0 C: 0
+557:    mov r0, r4                    src: 36        dst: 0         r0: 36 r1: 0 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1278                N: 0 Z: 0 V: 0 C: 0
+558:    movb chartab(r0), r1          src: 240       dst: 0         r0: 36 r1: 240 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1282              N: 1 Z: 0 V: 0 C: 0
+559:    bgt rdname                    src: 1244                     r0: 36 r1: 240 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1284              N: 1 Z: 0 V: 0 C: 0
+560:    jmp *1f-2(r1)                 src: 0                        r0: 36 r1: 240 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1404              N: 1 Z: 0 V: 0 C: 0
+indir=0r0: 36 r1: 240 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1404              N: 1 Z: 0 V: 0 C: 0
+indir=0r0: 36 r1: 240 r2: 0 r3: 0 r4: 36 r5: 2492 sp: 65500 pc: 1404              N: 1 Z: 0 V: 0 C: 0
