@@ -254,7 +254,7 @@ class InstrDouble(Instr):
     #   b) src-op 12 & dst-op 244 (-12) --> 12 & 244 = 4 OK
     #   c) src-op 245 (-11) & dst-op 244 (-12) --> 245 & 244 = 244 OK
     #   BIC(B): Bit clear, ~src & dst ((0xFF ^ src) & dst)
-    # To be continued...let's see...
+    # To be continued...
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
