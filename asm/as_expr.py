@@ -17,7 +17,7 @@ class Expression:
             val = int(self.expr.replace("8", "10").replace("9", "11"), 8)
             return val
 
-        if self.expr[:-1].isdigit() and self.expr[-1] == ".":
+        if self.expr[:-1].lstrip('-').isdigit() and self.expr[-1] == ".":
             # This is a decimal number
             val = int(self.expr[:-1])
             return val
@@ -401,17 +401,25 @@ class AddrAutoDecrementDeferred(Reg):
 
 
 class AddrIndex(Reg):
-    def __init__(self, reg, expr):
+    def __init__(self, reg, expr, sym_name=None):
         super().__init__(reg)
         self.expr = expr
         self.mode = 6
         self.addr_words = 1
+        self.name = sym_name
 
     def __str__(self):
         if self.reg:
-            return str(self.expr) + "(" + self.reg + ")"
+            if self.name:
+                s = self.name + " [" + str(self.expr) + "]"
+            else:
+                s = str(self.expr)
+            return s + "(" + self.reg + ")"
         else:
-            return str(self.expr)
+            if self.name:
+                return self.name + " [" + str(self.expr) + "]"
+            else:
+                return str(self.expr)
 
     def eval(self, vm, byte=False):
         # op: X(R), (R) + X is address
@@ -442,14 +450,19 @@ class AddrIndex(Reg):
 
 
 class AddrIndexDeferred(Reg):
-    def __init__(self, reg, expr):
+    def __init__(self, reg, expr, sym_name=None):
         super().__init__(reg)
         self.expr = expr
         self.mode = 7
         self.addr_words = 1
+        self.name = sym_name
 
     def __str__(self):
-        return "*" + str(self.expr) + "(" + self.reg + ")" if self.expr else "*(" + self.reg + ")"
+        if self.name:
+            return "*" + self.name + " [" + str(self.expr) + "]" + " (" + self.reg + ")" \
+                if self.expr else "*(" + self.reg + ")"
+        else:
+            return "*" + str(self.expr) + "(" + self.reg + ")" if self.expr else "*(" + self.reg + ")"
 
     def eval(self, vm, byte=False):
         # op: *X(R): (X + R) is address to address
@@ -476,14 +489,18 @@ class AddrIndexDeferred(Reg):
 
 
 class AddrImmediate(Reg):
-    def __init__(self, expr):
+    def __init__(self, expr, sym_name=None):
         super().__init__(None)
         self.expr = expr
         self.mode = 2
         self.addr_words = 1
+        self.name = sym_name
 
     def __str__(self):
-        return "$" + str(self.expr)
+        if self.name:
+            return "$" + self.name
+        else:
+            return "$" + str(self.expr)
 
     def eval(self, vm, byte=False):
         # op: $n, return n
@@ -504,13 +521,16 @@ class AddrImmediate(Reg):
 
 
 class AddrAbsolute(Reg):
-    def __init__(self, expr):
+    def __init__(self, expr, sym_name=None):
         super().__init__(None)
         self.expr = expr
         self.mode = 3
         self.addr_words = 1
+        self.name = sym_name
 
     def __str__(self):
+        if self.name:
+            return "*$" + self.name + " ["+ str(self.expr) + "]"
         return "*$" + str(self.expr)
 
     def eval(self, vm, byte=False):
@@ -523,16 +543,50 @@ class AddrAbsolute(Reg):
         address = self.expr.eval(vm)[2:]  # Strip leading *$
         vm.mem.write(address, val, byte)
 
+class AddrRelative(Reg):
+    def __init__(self, expr, sym_name=None):
+        super().__init__(None)
+        self.expr = expr
+        self.mode = 6
+        self.addr_words = 1
+        self.name = sym_name
+
+    def __str__(self):
+        if self.name:
+            return self.name + " [" + str(self.expr) + "]"
+        else:
+            return str(self.expr)
+
+    def eval(self, vm, byte=False):
+        # op: A, A is address relative to PC + 4
+        address = self.expr.eval(vm)
+        val = vm.mem.read(address, 1 if byte else 2)
+        return val
+
+    def eval_address(self, vm, byte=False):
+        address = self.expr.eval(vm)
+        return address
+
+    def set(self, vm, val, byte=False):
+        if self.reg:
+            address = vm.register[self.reg] + self.expr.eval(vm)
+        else:
+            address = self.expr.eval(vm)
+        vm.mem.write(address, val, byte)
 
 class AddrRelativeDeferred(Reg):
-    def __init__(self, expr):
+    def __init__(self, expr, sym_name=None):
         super().__init__(None)
         self.expr = expr
         self.mode = 7
         self.addr_words = 1
+        self.name = sym_name
 
     def __str__(self):
-        return "*" + str(self.expr)
+        if self.name:
+            return "*" + self.name + " [" + str(self.expr) + "]"
+        else:
+            return "*" + str(self.expr)
 
     def eval(self, vm, byte=False):
         # op: *A

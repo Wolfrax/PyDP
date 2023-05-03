@@ -14,9 +14,14 @@ class Memory:
         self.memory = [0] * self.size
         self.brk_addr = 0
         self.sp = 0
+        self.counters = {'read': 0, 'write': 0}
 
     def __len__(self):
         return len(self.memory)
+
+    def init(self, data):
+        assert len(data) <= self.size, "Initialization of memory out of bound"
+        self.memory[0:len(data)] = data
 
     def write(self, pos, value, byte=False):
         assert pos + 1 < len(self.memory), "Memory, write outside memory {}".format(pos)
@@ -31,6 +36,8 @@ class Memory:
         # 38
         # >>> s[2] << 16 | s[1] << 8 | s[0]
         # 2496065
+
+        self.counters['write'] += 1
 
         if value <= 0xFF:
             if byte:
@@ -62,8 +69,10 @@ class Memory:
 
             return ret_length
 
-    def read(self, pos, nr):
+    def read(self, pos, nr=2):
         assert pos < len(self.memory), "Read outside memory {}".format(pos)
+
+        self.counters['read'] += 1
 
         ret_val = 0
         for i in range(nr - 1, -1, -1):
@@ -71,6 +80,9 @@ class Memory:
             ret_val = ret_val << 8 | mem_val
 
         return ret_val
+
+    def get_counters(self):
+        return self.counters['read'], self.counters['write']
 
 
 class SymbolTable:
@@ -136,43 +148,16 @@ class PSW:
 
 
 class VM:
-    def __init__(self, command):
+    def __init__(self, command, exec=False):
         self.logger = logging.getLogger('pyPDP')
         logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+        self.logger.info('Start')
 
-        args = command.split(' ')  # Simple parsing
-        if args[0] != 'as' and args[0] != 'as2':
-            raise Exception("Wrong command: {}".format(args[0]))
-
-        if args[0] == 'as':
-            asm_files = 'as1?.s'
-        else:
-            asm_files = 'as2?.s'
-
-        args = args[:-1] + ['\x00'] if args[0] == 'as2' else args[:-1] + ['\x00']
-
-        atexit.register(self.patch_aout)
-
-        self.logger.info('Start {}'.format(args))
-
-        asm_list = []
-        for filename in os.listdir('.'):
-            if fnmatch.fnmatch(filename, asm_files):
-                asm_list.append(filename)
-
-        asm_list.sort()
-
-        src = ""
-        for filename in asm_list:
-            with open(filename, 'r') as f:
-                src += f.read()
+        # --> Pure VM initialization
 
         self.mem = Memory(64)
-        self.register = {'r0': 0, 'r1': 0, 'r2': 0, 'r3': 0, 'r4': 0, 'r5': 0, 'sp': len(self.mem), 'pc': 0}
+        self.register = {'r0': 0, 'r1': 0, 'r2': 0, 'r3': 0, 'r4': 0, 'r5': 0, 'sp': 0o177776, 'pc': 0}
         self.PSW = PSW()
-
-        self.src = src  # The original source program
-        self.prg = prs.parse(self.src)
 
         self.prg_start_address = 0
         self.register['pc'] = self.prg_start_address
@@ -181,38 +166,12 @@ class VM:
         self.variables = SymbolTable()
         self.named_labels = SymbolTable()
         self.numeric_labels = SymbolTable()
+        self.prg = None
 
         self.location_counter = self.prg_start_address
         self.variables.add('.', self.location_counter)
-
-        self.text_segment_start = self.location_counter
-        self.assemble_segment__('.text')
-
-        self.data_segment_start = self.location_counter
-        self.variables.add('.', self.location_counter)
-        self.assemble_segment__('.data')
-
-        self.bss_segment_start = self.location_counter
-        self.variables.add('.', self.location_counter)
-        self.assemble_segment__('.bss')
-
         self.variables.add('..', 0)
 
-        self.numeric_labels.sort()
-        self.resolve()
-
-        self.prg_index_LUT = {}
-
-        stack_mempos = len(self.mem) - 1024  # Program stack i maximum 1k of memory
-        for arg in reversed(args[:-1]):
-            arg += '\x00'
-            nr = 0
-            for ch in arg:
-                nr += self.mem.write(stack_mempos + nr, ord(ch), byte=True)
-            self.stack_push(stack_mempos)
-            stack_mempos += nr
-
-        self.stack_push(len(args) - 1)
         self.sys_sig_status = {}
         self.sig_list = ['NA',
                          'hangup',
@@ -233,6 +192,73 @@ class VM:
         self.instr_traceQ = deque(maxlen=1000000)
 
         self.files = {1: 'stdout'}
+        self.counters = {'instr executed': 0}
+
+        # <-- Pure VM initialization
+
+        # --> Command line parsing
+        args = command.split(' ')
+        if args[0] not in ['as', 'as2', 'run']:
+            raise Exception("Wrong command: {}".format(args[0]))
+        elif args[0] in ['as', 'as2']:
+            # This is when we assemble from source
+            self.logger.info('Start assmembling {}'.format(args))
+
+            asm_files = 'as1?.s' if args[0] == 'as' else 'as2?.s'
+            args = args[:-1] + ['\x00']
+
+            asm_list = []
+            for filename in os.listdir('.'):
+                if fnmatch.fnmatch(filename, asm_files):
+                    asm_list.append(filename)
+
+            asm_list.sort()
+
+            if not exec:
+                self.src = ""
+                for filename in asm_list:
+                    with open(filename, 'r') as f:
+                        self.src += f.read()
+
+                self.prg = prs.parse(self.src)
+
+                self.text_segment_start = self.location_counter
+                self.assemble_segment__('.text')
+
+                self.data_segment_start = self.location_counter
+                self.variables.add('.', self.location_counter)
+                self.assemble_segment__('.data')
+
+                self.bss_segment_start = self.location_counter
+                self.variables.add('.', self.location_counter)
+                self.assemble_segment__('.bss')
+
+                self.numeric_labels.sort()
+                self.resolve()
+
+                self.prg_index_LUT = {}
+
+            stack_mempos = len(self.mem) - 1024  # Program stack i maximum 1k of memory
+
+            # Push all arguments on internal stack in reverse order
+            for arg in reversed(args[:-1]):
+                arg += '\x00'  # all arguments on stack need to be terminated with 0
+                nr = 0
+                for ch in arg:
+                    nr += self.mem.write(stack_mempos + nr, ord(ch), byte=True)
+                self.stack_push(stack_mempos)
+                stack_mempos += nr
+
+            self.stack_push(len(args) - 1)
+
+            atexit.register(self.patch_aout)
+        else:  # run command
+            pass
+
+        atexit.register(self.stats)
+
+    def memory(self, data):
+        self.mem.init(data)
 
     def log_level(self, verbose):
         logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
@@ -405,11 +431,13 @@ class VM:
         return result[:-1]  # Ignore last '\n'
 
     def exec(self):
+        # This routine is used when we have parsed files and have all instructions in a syntax tree (prg attribute)
         instr_loc = self.mem.read(self.get_PC(), 2)
         instr = self.prg.instructions[instr_loc]
         self.trace(instr)
         instr.exec(self)
         self.post_trace()
+        self.counters['instr executed'] += 1
 
     def patch_aout(self):
         # This is a cludge...
@@ -448,6 +476,11 @@ class VM:
         except FileNotFoundError:
             pass
 
+    def stats(self):
+        mem_reads, mem_writes = self.mem.get_counters()
+        self.logger.info(f"No of memory accesses: {(mem_reads + mem_writes):,} "
+                         f"(read: {mem_reads:,}, write {mem_writes:,})")
+        self.logger.info(f"No of instructions executed: {self.counters['instr executed']:,}")
 
 if __name__ == '__main__':
     if sys.argv[1] == 'as2':

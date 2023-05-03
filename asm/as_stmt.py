@@ -35,7 +35,7 @@ class LabelStmt(Stmt):
         super().__init__(lineno, expr[:-1])
 
     def assemble(self, vm):
-        # For labels, we identify if it is numeric och named and register this in the right table
+        # For labels, we identify if it is numeric or named and register this in the right table
         # location counter is not updated as the label is not executed as an instruction, it is only a location
         # When an instruction is referring to a label (eg "jmp start"), the instruction will lookup the location in
         # the table. For example "start" has the value 10 in the named_labels table, "jmp" will set the
@@ -481,7 +481,6 @@ class KeywordStmt(Stmt):
             val -= 1
 
             val = util.from_2_compl(val, byte=byte)
-            val = util.from_2_compl(val, byte=byte)
             self.src.set(vm, val, byte=byte)
 
             PSW['N'] = 1 if val < 0 else 0
@@ -718,7 +717,7 @@ class KeywordStmt(Stmt):
             vm.incr_PC(1 + self.src.words() + self.dst.words())
 
         elif self.expr == 'sob':
-            # Subtract 1 and branch if 0
+            # Subtract 1 and branch if not 0
             src = self.src.eval(vm)
             src -= 1
             self.src.set(vm, src)
@@ -875,7 +874,7 @@ class AssignmentStmt(Stmt):
         # is updated with 2 in the code). The "right.eval(vm)"-call will take of unary/binary expressions and return
         # a value.
         # Note that the instruction as such is not assembled into memory, there is no op-code for this instruction.
-        # Thus is is resolved before execution. An implication of this is that assignments is for static variables.
+        # Thus, it is resolved before execution. An implication of this is that assignments is for static variables.
         left = self.left.get(vm)
         right = self.right.eval(vm)
         vm.variables.add(left, right)
@@ -941,7 +940,7 @@ class SyscallStmt(Stmt):
         if self.expr == 'signal':
             # sys  signal; sig; label;  See http://man.cat-v.org/unix-6th/2/signal
             # Note, sig and label are parameters to the signal syscall, as 2 statements. These statements
-            # are written to memory in the first assmeble pass or in the second resolve pass (if a named label is used)
+            # are written to memory in the first assemble pass or in the second resolve pass (if a named label is used)
             # Hence we read the values directly from memory below.
 
             vm.incr_PC()
@@ -966,10 +965,10 @@ class SyscallStmt(Stmt):
             current_pc = vm.get_PC()
             vm.set_PC(syscall_address)
 
-            vm.prg.instructions[syscall_instr_ind].exec(vm)
-
-            vm.set_PC(current_pc)
-            vm.incr_PC()
+            if vm.prg:
+                vm.prg.instructions[syscall_instr_ind].exec(vm)
+                vm.set_PC(current_pc)
+                vm.incr_PC()
 
         elif self.expr == 'stat':
             # sys stat; name; buf
@@ -1279,6 +1278,8 @@ class SyscallStmt(Stmt):
                 args.append(arg_str)
                 arg_names += (arg_str + ' ')
 
+            vm.stats()
+
             if 'ASM_EXEC' in os.environ:
                 vm.logger.info('ASM_EXEC ({}), {} {}'.format(os.environ['ASM_EXEC'], name, arg_names))
             else:
@@ -1347,6 +1348,10 @@ class PseudoOpStmt(Stmt):
             for op in self.operands:
                 val = op.eval(vm)
                 if isinstance(val, int):
+                    # Test
+                    if val < 0:
+                        val = 256 + val  # 2's complement for 8 bits
+                    # Test
                     vm.mem.write(vm.location_counter, val, byte=True)
                 else:
                     op = op.get(vm)

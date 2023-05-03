@@ -191,7 +191,7 @@ class AsParser(Parser):
         return stmt.KeywordStmt(self.lineno, p.SIMPLE_KEYWORD)
 
     # Messy below for SINGLE_OP and DOUBLE_OP keyword.
-    # A val instruction can be, for example: clr a, or: mov a, r0
+    # A valid instruction can be, for example: clr a, or: mov a, r0
     # 'a' in these cases are parsed as an expression, however, in the context of keyword statements it should be
     # understood as relative addressing. Thus, when executing mov a, r0 (and a is a named label as an example), it is
     # not the location of label a that should be moved into r0, but the value at the location of a. If a is located at
@@ -199,14 +199,13 @@ class AsParser(Parser):
     # AddrIndex (which also handles the cases of mov X(r1), r0 which is moving the value at location X+r1 to r0).
     # But, the statement mov a, r0 is parsed as: mov expression, register. Therefore, we detect if one of the
     # operands is of type "Expression" and replace this with an "AddrIndex"-object instead.
-    # Trying to parse it directly as an AddrIndex (see production below) will create an reduce/reduce conflict,
+    # Trying to parse it directly as an AddrIndex (see production below) will create a reduce/reduce conflict,
     # so this is a workaround.
     # End of mess...
 
     @_('BRANCH_KEYWORD expression', 'EXT_BRANCH_KEYWORD expression')
     def keyword_statement(self, p):
         self.lineno = p.lineno
-        tmp = p.expression
         if p.expression.type() == "Expression":
             op = expr.AddrIndex(None, p.expression)
         elif p.expression.type() == "BinaryExpression":

@@ -1,5 +1,5 @@
 .text
-        clr r2
+.byte -1
         sys write; msg; 15
         sys exit
 .data
