@@ -203,8 +203,7 @@ class VM:
         if sys.argv[1] == 'as2':
             command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in self.config['src_dir'] + sys.argv[2:])
         else:
-            #fnList = sorted(glob.glob(self.config['src_dir'] + sys.argv[2]))
-            fnList = sorted(glob.glob(sys.argv[2]))
+            fnList = sorted(glob.glob(self.config['src_dir'] + sys.argv[2]))
             command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
 
         args = command.split(' ')
