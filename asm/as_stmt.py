@@ -1348,10 +1348,6 @@ class PseudoOpStmt(Stmt):
             for op in self.operands:
                 val = op.eval(vm)
                 if isinstance(val, int):
-                    # Test
-                    if val < 0:
-                        val = 256 + val  # 2's complement for 8 bits
-                    # Test
                     vm.mem.write(vm.location_counter, val, byte=True)
                 else:
                     op = op.get(vm)
