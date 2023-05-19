@@ -1,0 +1,4 @@
+src_dir: ./
+doc_dir: ./doc
+ref_dir: ./ref
+out_dir: ./out

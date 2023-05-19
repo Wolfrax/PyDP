@@ -96,11 +96,14 @@ class Instr:
     REGISTER = 0
     REGISTER_DEFERRED = 1
     AUTOINCREMENT = 2
+    IMMEDIATE = 2
     AUTOINCREMENT_DEFERRED = 3
     AUTODECREMENT = 4
     AUTODECREMENT_DEFERRED = 5
     INDEX = 6
+    RELATIVE = 6
     INDEX_DEFERRED = 7
+    RELATIVE_DEFERRED = 7
 
     def __init__(self, aout, op):
         self.aout = aout
@@ -115,8 +118,8 @@ class Instr:
             return as_expr.AddrRegister(reg)
         elif mode == self.REGISTER_DEFERRED:
             return as_expr.AddrRegisterDeferred(reg)
-        elif mode == self.AUTOINCREMENT:
-            if reg == 'pc':
+        elif mode == self.AUTOINCREMENT or mode == self.IMMEDIATE:
+            if reg == 'pc':  # mode== IMMEDIATE
                 expr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
                 expr = util.from_2_compl(expr, False)
                 name = self.aout.sym_table.find(expr)
@@ -136,14 +139,14 @@ class Instr:
             return as_expr.AddrAutoDecrement(reg)
         elif mode == self.AUTODECREMENT_DEFERRED:
             return as_expr.AddrAutoDecrementDeferred(reg)
-        elif mode == self.INDEX:
-            if reg == 'pc':
+        elif mode == self.INDEX or mode == self.RELATIVE:
+            if reg == 'pc':  # RELATIVE
                 addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
                 addr = util.from_2_compl(addr, False) + self.vm.get_PC() + 4
                 name = self.aout.sym_table.find(addr)
                 return as_expr.AddrRelative(as_expr.Expression(str(addr) + "."), sym_name=name)
             else:
-                if reg is None:  # This is when we have a branch instruction, off set is in bytes so multiply by 2
+                if reg is None:  # This is when we have a branch instruction, offset is in bytes so multiply by 2
                     expr = self.vm.get_PC() + 2 + (2 * offset)
                     name = self.aout.sym_table.find(expr)
                     return as_expr.AddrIndex(None, as_expr.Expression(str(expr) + "."), sym_name=name)
@@ -154,8 +157,8 @@ class Instr:
                     #expr = util.from_2_compl(expr, False)
                     name = self.aout.sym_table.find(self.vm.mem.read(self.vm.get_PC() + 2 + offset))
                     return as_expr.AddrIndex(reg, as_expr.Expression(str(expr) + "."), sym_name=name)
-        elif mode == self.INDEX_DEFERRED:
-            if reg == 'pc':
+        elif mode == self.INDEX_DEFERRED or mode == self.RELATIVE_DEFERRED:
+            if reg == 'pc':  # RELATIVE DEFERRED
                 addr = self.vm.get_PC() + 4 + self.vm.mem.read(self.vm.get_PC() + 2 + offset)
                 addr = util.from_2_compl(addr, False)
                 #expr = self.vm.mem.read(addr)
@@ -421,30 +424,6 @@ class InstrPrgCntrl(Instr):
     # RTI: Not implemented
     # RTT: Not implemented
     #
-    # 2's complement for addressing modes.
-    # In general an address is the value for a location which cannot be negative by definition.
-    # However, doing address arithmetics operands can have negative values.
-    #   Mode 0 (Register): Register contains operand - 2's complement no issue
-    #       This is handled by the actual instruction, eg ADD RO, R1, where R0 = 1 and R1 = 244 (-12) => R1 = 245 (-11)
-    #   Mode 1 (Register deferred): Register contains address - 2's complement no issue (address not negative)
-    #   Mode 2 (Auto-increment): Register contains address - 2's complement no issue (address not negative)
-    #   Mode 3 (Auto-increment deferred): Register contains address of address - 2's complement no issue
-    #   Mode 4 (Auto-decrement): Register contains address - 2's complement no issue
-    #   Mode 5 (Auto-decrement deferred): Register contains address of address - 2 2's complement no issue
-    #       NB: In this mode the first address is decremented with 2, then it points to the next address.
-    #       If the original address is 0, the decrement would result in a negative address, which is illegal
-    #   Mode 6 (Index): Register (which contain a value that can be negative) is added to X which is located at PC + 2
-    #       If R0 = 244 (-12) and we execute JMP 100.(R0) (100 is decimal), we should jump to address 100 - 12 = 88
-    #       Thus, we need to manage 2's complement when doing the addition (R) + X.
-    #   Mode 7 (Index deferred): (R) + X is address of address. Same comment as for Mode 6 (Index)
-    #       Register might include a negative value.
-    #
-    #   PC addressing
-    #   Mode 2 (Immediate): Operand follow instruction - 2's complement no issue
-    #   Mode 3 (Absolute): Address follow instruction - 2's complement no issue
-    #   Mode 6 (Relative): Address follow instruction + PC + 4 - 2's complement no issue
-    #   Mode 7 (Relative deferred):  Address follow instruction + PC + 4 which is a new address - 2's complement no issue
-    #
 
 
     def __init__(self, aout, op):
@@ -505,7 +484,7 @@ class AOut:
         fnList = sorted(glob.glob(sys.argv[2]))
         cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
 
-        self.vm = asm.VM(cmd,exec=True)
+        self.vm = asm.VM(exec=True)
         self.vm.memory(bytes[self.head.size:])
 
         sym_start = (1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data'))
