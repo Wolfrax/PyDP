@@ -149,17 +149,17 @@ class PSW:
 
 
 class VM:
-    def __init__(self, exec=False):
+    def __init__(self, exec=False, config_file="config.yml"):
         self.logger = logging.getLogger('pyPDP')
         logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
         self.logger.info('Start')
 
         # --> Pure VM initialization
         try:
-            with open("config.yml", "rb") as cfg_file:
+            with open(config_file, "rb") as cfg_file:
                 self.config = yaml.safe_load(cfg_file)
         except OSError as e:
-            self.logger.info(f"config.yml not found in {os.getcwd()}")
+            self.logger.info(f"{config_file} not found in {os.getcwd()}")
             self.config = {'work_dir': ".", 'out_dir': "."}
 
         os.chdir(self.config['work_dir'])
