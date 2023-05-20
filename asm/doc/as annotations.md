@@ -20,21 +20,22 @@ Below, the text is referring to 'parsing and interpretation' and 'executing'. Th
 the same implementation. In the first case, we parse the source code of the assembler files and interpret the 
 instructions to generate the outcome. In the latter case, we are executing from a binary file in aout-format.
 
-# Table of contents
-1. [Overview](#overview)
-2. [System calls](#syscalls)
+# Table of contents*
+* [Overview](#overview)
+* [Configuration](#config)
+* [System calls](#syscalls)
    * [File handling read/write](#rwsyscalls)
-3. [Addressing modes](#addrmodes)
+* [Addressing modes](#addrmodes)
    * [General Register Addressing](#regaddr)
    * [Program Counter Addressing](#pcaddr)
-4. [Instructions](#instructions)
+* [Instructions](#instructions)
    * [Single Operand](#so_instr)
    * [Double Operand](#double_instr)
    * [Program Control](#prgctrl_instr)
    * [Miscellaneous](#misc_instr)
-5. [Pseudo operations](#pseudo_op)
+* [Pseudo operations](#pseudo_op)
    * [.byte](#pseudo_op_byte)
-6. [Appendix](#appendix)
+* [Appendix](#appendix)
    * [Grammar](#grammar)
 
 # Overview <a name="overview"></a>
@@ -72,6 +73,17 @@ def from_2_compl(val, byte=True):
 Operations that involves arithmetics or bit-operations in general needs to ensure proper handling of 2's complement
 formats. Also, reading and writing through system calls to files needs to ensure proper handling, which is analyzed
 below.
+
+# Configuration <a name="config"></a>
+Configuration is made by using a YAML file, default name is "config.yml".
+When instantiating the class VM, it is possible to set the name of the configuration file. If the file is not found
+the logger will issue that as information then set default values of configuration parameters.
+
+The parameter is:
+* work_dir: Set the directory where files to be used during parsing/interpreting or execution are stored. Also, the
+putput files will be generated in this directory. Typically, files used for parsing/interpreting are the
+assembler source files (like a11.s, a12.s, ...). Output files are for example "a.out" or dump/trace files.
+
 
 # System calls <a name="syscalls"></a>
 ## File handling read/write <a name="rwsyscalls"></a>
