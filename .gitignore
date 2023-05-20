@@ -13,10 +13,10 @@
 /asm/a_as1.out
 /pdp11dasm/a_as1.out.das
 /asm/a_as2.out
-/asm/as_pdp.dis
+/asm/ref/as_pdp.dis
 /gui/client/src/as_pdp.dis
-/asm/as_pdp.out
-/asm/as_pdp (as compiled on SimH PDP11).out
+/asm/ref/as_pdp.out
+/asm/ref/as_pdp (as compiled on SimH PDP11).out
 /gui/client/.idea/client.iml
 /gui/.idea/misc.xml
 /gui/.idea/modules.xml
@@ -33,8 +33,8 @@
 /pdp11dasm/.idea/inspectionProfiles/Project_Default.xml
 /asm/sysfix
 /asm/trace.1
-/asm/trace.2
-/asm/trace.txt
+/asm/ref/trace.2
+/asm/ref/trace.txt
 /gui/.idea/vcs.xml
 /gui/client/.idea/vcs.xml
 /pdp11dasm/.idea/workspace.xml

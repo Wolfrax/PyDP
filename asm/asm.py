@@ -155,8 +155,14 @@ class VM:
         self.logger.info('Start')
 
         # --> Pure VM initialization
-        with open("config.yml", "rb") as cfg_file:
-            self.config = yaml.safe_load((cfg_file))
+        try:
+            with open("config.yml", "rb") as cfg_file:
+                self.config = yaml.safe_load(cfg_file)
+        except OSError as e:
+            self.logger.info(f"config.yml not found in {os.getcwd()}")
+            self.config = {'work_dir': ".", 'out_dir': "."}
+
+        os.chdir(self.config['work_dir'])
 
         self.mem = Memory(64)
         self.register = {'r0': 0, 'r1': 0, 'r2': 0, 'r3': 0, 'r4': 0, 'r5': 0, 'sp': 0o177776, 'pc': 0}
@@ -200,24 +206,23 @@ class VM:
         # <-- Pure VM initialization
 
         # --> Command line parsing
-        if sys.argv[1] == 'as2':
-            command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in self.config['src_dir'] + sys.argv[2:])
-        else:
-            fnList = sorted(glob.glob(self.config['src_dir'] + sys.argv[2]))
-            command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
-
-        args = command.split(' ')
-        if args[0] not in ['as', 'as2']:
-            raise Exception("Wrong command: {}".format(args[0]))
+        if sys.argv[1] not in ['as', 'as2']:
+            raise Exception("Wrong command: {}".format(sys.argv[1]))
         else:
             # This is when we assemble from source
+            if sys.argv[1] == 'as2':
+                command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in sys.argv[2:])
+            else:
+                fnList = sorted(glob.glob(sys.argv[2]))
+                command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
+            args = command.split(' ')
+
             self.logger.info('Start {}'.format(args))
 
             asm_files = 'as1?.s' if args[0] == 'as' else 'as2?.s'
             args = args[:-1] + ['\x00']
 
             asm_list = []
-#            for filename in os.listdir(self.config['src_dir']):
             for filename in os.listdir("."):
                 if fnmatch.fnmatch(filename, asm_files):
                     asm_list.append(filename)
@@ -227,7 +232,7 @@ class VM:
             if not exec:  # Parsing and interpreting
                 self.src = ""
                 for filename in asm_list:
-                    with open(self.config['src_dir'] + filename, 'r') as f:
+                    with open(filename, 'r') as f:
                         self.src += f.read()
 
                 self.prg = prs.parse(self.src)
