@@ -4,8 +4,8 @@ import instr_codes as ic
 import util
 import as_expr
 import as_stmt
-import glob
 import atexit
+import os
 
 class Head:
     def __init__(self, data):
@@ -476,15 +476,16 @@ class AOut:
     def __init__(self, name):
         self.name = name
         self.word = None
-        with open(self.name, 'rb') as f:
-            bytes = f.read()
+        try:
+            with open(self.name, 'rb') as f:
+                bytes = f.read()
+        except OSError as e:
+            print(f"{self.name} not found in {os.getcwd()}")
+            sys.exit(1)
 
         self.head = Head(bytes[0:16])
 
-        fnList = sorted(glob.glob(sys.argv[2]))
-        cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
-
-        self.vm = asm.VM(exec=True)
+        self.vm = asm.VM(cmd_line=sys.argv, exec=True)
         self.vm.memory(bytes[self.head.size:])
 
         sym_start = (1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data'))
@@ -539,6 +540,6 @@ class AOut:
 if __name__ == '__main__':
     instrLUT = ic.InstrLUT()
 
-    aout = AOut("a.out")
+    aout = AOut("./src/a.out")
     atexit.register(aout.exit)
     aout.exec()

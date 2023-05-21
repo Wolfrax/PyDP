@@ -149,7 +149,7 @@ class PSW:
 
 
 class VM:
-    def __init__(self, exec=False, config_file="config.yml"):
+    def __init__(self, cmd_line, exec=False, config_file="config.yml"):
         self.logger = logging.getLogger('pyPDP')
         logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
         self.logger.info('Start')
@@ -206,15 +206,15 @@ class VM:
         # <-- Pure VM initialization
 
         # --> Command line parsing
-        if sys.argv[1] not in ['as', 'as2']:
-            raise Exception("Wrong command: {}".format(sys.argv[1]))
+        if cmd_line[1] not in ['as', 'as2']:
+            raise Exception("Wrong command: {}".format(cmd_line[1]))
         else:
             # This is when we assemble from source
-            if sys.argv[1] == 'as2':
-                command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in sys.argv[2:])
+            if cmd_line[1] == 'as2':
+                command = cmd_line[1] + ' ' + ''.join(elem + ' ' for elem in cmd_line[2:])
             else:
-                fnList = sorted(glob.glob(sys.argv[2]))
-                command = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
+                fnList = sorted(glob.glob(cmd_line[2]))
+                command = cmd_line[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
             args = command.split(' ')
 
             self.logger.info('Start {}'.format(args))
@@ -495,7 +495,7 @@ class VM:
         self.logger.info(f"No of instructions executed: {self.counters['instr executed']:,}")
 
 if __name__ == '__main__':
-    vm = VM()
+    vm = VM(cmd_line=sys.argv)
 
     while True:
         vm.exec()

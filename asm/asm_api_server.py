@@ -85,8 +85,10 @@ def trace_status(trace):
 
 @app.route('/asm/vm/src')
 def vm():
-    fnList = sorted(glob.glob(request.args.get('file')))
-    session.cmd = request.args.get('cmd') + ' ' + ''.join(elem + ' ' for elem in fnList)
+    # Note, session.cmd needs to be setup as sys.argv would be. For example as: ['as', 'as', 'as1?.s']
+    # When initializing VM below, it will read session.cmd as cmd_line and parse accordingly. It will also set
+    # working directory according to configuration settings.
+    session.cmd = [request.args.get('cmd'), request.args.get('cmd'), request.args.get('file')]
     session.vm = asm.VM(session.cmd)
     return session.vm.get_src()
 

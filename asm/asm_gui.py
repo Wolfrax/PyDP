@@ -167,13 +167,7 @@ class GUI:
 
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'as2':
-        cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in sys.argv[2:])
-    else:
-        fnList = sorted(glob.glob(sys.argv[2]))
-        cmd = sys.argv[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
-
     root = tk.Tk()
-    vm = asm.VM(cmd)
+    vm = asm.VM(cmd_line=sys.argv)
     vm_gui = GUI(root, vm)
     root.mainloop()
