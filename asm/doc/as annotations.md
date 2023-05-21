@@ -23,6 +23,7 @@ instructions to generate the outcome. In the latter case, we are executing from 
 # Table of contents*
 * [Overview](#overview)
 * [Configuration](#config)
+* [Executing](#exec)
 * [System calls](#syscalls)
    * [File handling read/write](#rwsyscalls)
 * [Addressing modes](#addrmodes)
@@ -84,6 +85,44 @@ The parameter is:
 putput files will be generated in this directory. Typically, files used for parsing/interpreting are the
 assembler source files (like a11.s, a12.s, ...). Output files are for example "a.out" or dump/trace files.
 
+# Executing <a name="exec"></a>
+The implementation of asm has led to several variants:
+* Running asm.py from command line
+* Running asm.py with a simple GUI using tkinter
+* Running asm.py with a web-GUI (using react), in this case an API-server is needed (using Flask)
+* Running aout_dump.py to dump an a.out file
+* Running aout_exec.py to execute an a.out formatted file (under construction)
+
+The first 3 options are parsing/interpreting assembler files, the two variants with GUI enables simple debugging by
+functions such as stepping and setting breakpoints. Also, visualization of registers, processor status word, stack etc 
+is available.
+
+Running asm.py from command line is done so: `$ python asm.py as as1?.s`, this will parse/interpret the assembler code
+for the first pass of UNIX v6 assembler (ie the files as11.s, as12.s, as13.s, as14.s, as15.s, as16.s, as17.s, as18.s and
+as19.s). If the first pass should start the second pass, the environment variable `ASM_PASS2` should be set.
+If not set, the first pass will terminate. If set, the first pass will trigger execution of the second pass by executing
+`/lib/as2` (as the first pass will execute a system call to `/lib/as2`). `/lib/as2` is linked to the file `as2.bash`.
+as2 can be manually executed by issuing `$ python asm.py as2 /tmp/atm1i /tmp/atm2i /tmp/atm3h` (or equivalent names of
+tmp-files).
+
+Running with tkinter GUI is done as so: `$ python asm_gui.py as as1?.s`.
+
+Running with web-GUI is a two-step approach. First, the API-server should be started.
+Using Flask version 2.0.2 this is done like so (remember to activate the virtual environment first):
+```commandline
+$ export FLASK_APP=hello
+$ flask run
+```
+Then, the client - written in react - can be started like so:
+```commandline
+$ cd /home/mm/dev/PyDP/gui/client
+$ npm start
+```
+If everything is working, the GUI should be visible in the default web-brower. Initially, we need to tell the gui 
+which part of the UNIX v6 assembler we will use. Assuming it is the first pass, simply write "as1?.s". A GUI should then
+be visible.
+
+Note that above is also set as configurations in PyCharm.
 
 # System calls <a name="syscalls"></a>
 ## File handling read/write <a name="rwsyscalls"></a>
