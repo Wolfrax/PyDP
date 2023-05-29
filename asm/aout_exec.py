@@ -119,9 +119,8 @@ class Instr:
         elif mode == self.REGISTER_DEFERRED:
             return as_expr.AddrRegisterDeferred(reg)
         elif mode == self.AUTOINCREMENT or mode == self.IMMEDIATE:
-            if reg == 'pc':  # mode== IMMEDIATE
+            if reg == 'pc':  # mode == IMMEDIATE
                 expr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                expr = util.from_2_compl(expr, False)
                 name = self.aout.sym_table.find(expr)
                 return as_expr.AddrImmediate(as_expr.Expression(str(expr) + "."), sym_name=name)
             else:
@@ -159,12 +158,9 @@ class Instr:
                     return as_expr.AddrIndex(reg, as_expr.Expression(str(expr) + "."), sym_name=name)
         elif mode == self.INDEX_DEFERRED or mode == self.RELATIVE_DEFERRED:
             if reg == 'pc':  # RELATIVE DEFERRED
-                addr = self.vm.get_PC() + 4 + self.vm.mem.read(self.vm.get_PC() + 2 + offset)
+                addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
+                addr = self.vm.get_PC() + 4 + util.from_2_compl(addr, False)
                 addr = util.from_2_compl(addr, False)
-                #expr = self.vm.mem.read(addr)
-                #expr = util.from_2_compl(expr, False)
-                #name = self.aout.sym_table.find(expr)
-                #return as_expr.AddrRelativeDeferred(as_expr.Expression(str(expr) + "."), sym_name=name)
                 name = self.aout.sym_table.find(addr)
                 return as_expr.AddrRelativeDeferred(as_expr.Expression(str(addr) + "."), sym_name=name)
             else:

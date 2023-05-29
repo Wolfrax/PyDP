@@ -151,7 +151,7 @@ class PSW:
 class VM:
     def __init__(self, cmd_line, exec=False, config_file="config.yml"):
         self.logger = logging.getLogger('pyPDP')
-        logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
+        logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
         self.logger.info('Start')
 
         # --> Pure VM initialization

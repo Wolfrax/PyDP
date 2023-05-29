@@ -110,7 +110,7 @@ Running with tkinter GUI is done as so: `$ python asm_gui.py as as1?.s`.
 Running with web-GUI is a two-step approach. First, the API-server should be started.
 Using Flask version 2.0.2 this is done like so (remember to activate the virtual environment first):
 ```commandline
-$ export FLASK_APP=hello
+$ export FLASK_APP=asm_api_server
 $ flask run
 ```
 Then, the client - written in react - can be started like so:
@@ -244,6 +244,7 @@ def eval(self, vm, byte=False):
     return val
 ```
 Additional comments:
+
 * When executing, the expr-value (X) is set in `Instr new_expr`-method, where the value is read from memory. The value 
 is assumed to be in 2's complement format in memory. Thus, no conversion is needed here.
 * When parsing and interpreting, the value (X) is part of the source code, for example `JMP -12.(R0)` where X is -12.
@@ -292,7 +293,7 @@ These are the addressing modes where addressing is made relative the program cou
 **Mode 2 (Immediate)**: Operand follow instruction.
 An example is `mov $-12. ,r4`, where the decimal value -12 is moved into register 4. The first operand value is stored 
 in the word following the mov-instruction. In memory the operand should be stored as 65524, so we move that value to r4.
-When parsing the first operand it will be a string "-12." in the class UnaryExpression. When interpreting the string
+When parsing the first operand it will be a string "-12." in the class UnaryExpression. When interpreting, the string
 will be evaluated to an integer in the `eval`-method of `UnaryExpression`-class and converted to 2' complement.
 
 ```python
@@ -310,7 +311,7 @@ When executing an instruction with an operand in Immediate mode, we assume that 
 2's complement format. From `Instr new_expr`-method
 ```python
 elif mode == self.AUTOINCREMENT or mode == self.IMMEDIATE:
-    if reg == 'pc':  # mode== IMMEDIATE
+    if reg == 'pc':  # mode == IMMEDIATE
         expr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
         name = self.aout.sym_table.find(expr) 
         return as_expr.AddrImmediate(as_expr.Expression(str(expr) + "."), sym_name=name)
@@ -429,7 +430,7 @@ elif self.expr in ['inc', 'incb']:
 
     self.src.set(vm, val, byte=byte)
 
-    PSW['N'] = 1 if val < 0 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = 1 if overflow else 0
 ```
@@ -442,18 +443,18 @@ detect this.
 
 ```python
 elif self.expr in ['dec', 'decb']:
-    # Decrement
-    val = self.src.eval(vm, byte=byte)
+  # Decrement
+  val = self.src.eval(vm, byte=byte)
+  
+  overflow = val == msb
+  val -= 1
 
-    overflow = val == msb
-    val -= 1
-
-    val = util.to_2_compl(val, byte=byte)
-    self.src.set(vm, val, byte=byte)
-
-    PSW['N'] = 1 if val < 0 else 0
-    PSW['Z'] = 1 if val == 0 else 0
-    PSW['V'] = 1 if overflow else 0
+  val = util.to_2_compl(val, byte=byte)
+  self.src.set(vm, val, byte=byte)
+  
+  PSW['N'] = 1 if val & msb else 0
+  PSW['Z'] = 1 if val == 0 else 0
+  PSW['V'] = 1 if overflow else 0
 ```
 
 **NEG(B)**: Replace the operands value with its 2's complement.
@@ -466,11 +467,11 @@ elif self.expr in ['neg', 'negb']:
 
     val = util.from_2_compl(val, byte)
     val = -val
-    PSW['N'] = 1 if val < 0 else 0
     val = util.to_2_compl(val, byte)
 
     self.src.set(vm, val, byte=byte)
-
+    
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['C'] = 0 if val == 0 else 1
     PSW['V'] = 1 if val & msb else 0
@@ -483,9 +484,8 @@ We convert from 2's complement and test to set condition codes.
 elif self.expr in ['tst', 'tstb']:
     # Test, set condition flags
     val = self.src.eval(vm, byte=byte)
-    val = util.from_2_compl(val, byte)
 
-    PSW['N'] = 1 if val < 0 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = 0
     PSW['C'] = 0
@@ -503,12 +503,10 @@ elif self.expr in ['asr', 'asrb']:
     
     val = util.from_2_compl(val, byte)
     val = (val >> 1) | (val & msb)
-    
-    PSW['N'] = 1 if val < 0 else 0
-    
     val = util.to_2_compl(val, byte=byte)
     self.src.set(vm, val, byte=byte)
-
+    
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = PSW['N'] ^ PSW['C']
 ```
@@ -529,14 +527,11 @@ elif self.expr in ['asl', 'aslb']:
         PSW['C'] = (val & msb) >> 15
 
     val = util.from_2_compl(val, byte=byte)
-
     val <<= 1
-    
-    PSW['N'] = 1 if val < 0 else 0
-    
     val = util.to_2_compl(val, byte=False)
     self.src.set(vm, val, byte=False)
 
+    PSW['N'] = 1 if val & msb else 0    
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = PSW['N'] ^ PSW['C']
 ```
@@ -548,7 +543,7 @@ Assume operand value is 244 (-12), which has bit sequence "1111 0100", assume C 
 
 ```python
 elif self.expr in ['ror', 'rorb']:
-    # Rotate right, shift operand right, move lowest bit in carry
+    # Rotate right, shift operand right, move the lowest bit in carry
     val = self.src.eval(vm, byte=byte)
     carry = PSW['C']
     PSW['C'] = val & 1
@@ -561,8 +556,7 @@ elif self.expr in ['ror', 'rorb']:
 
     self.src.set(vm, val, byte=byte)
 
-    val = util.from_2_compl(val, byte)
-    PSW['N'] = 1 if val < 0 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = PSW['N'] ^ PSW['C']
 ```
@@ -574,7 +568,7 @@ Assume operand value is 244 (-12), which has bit sequence "1111 0100", assume C 
 
 ```python
 elif self.expr in ['rol', 'rolb']:
-    # Rotate right, shift operand left, move lowest bit in carry
+    # Rotate right, shift operand left, move the lowest bit in carry
     val = self.src.eval(vm, byte=byte)
     carry = val & msb
     PSW['C'] = carry
@@ -587,8 +581,7 @@ elif self.expr in ['rol', 'rolb']:
 
     self.src.set(vm, val, byte=False)
     
-    val = util.from_2_compl(val, byte=False)
-    PSW['N'] = 1 if val < 0 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['C'] = carry
     PSW['V'] = PSW['N'] ^ PSW['C']
@@ -607,7 +600,7 @@ elif self.expr == 'swab':
     val = (low_byte << 8) | (high_byte >> 8)
     self.src.set(vm, val)
 
-    PSW['N'] = 1 if val & 0x80 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val & 0xFF == 0 else 0
     PSW['V'] = 0
     PSW['C'] = 0
@@ -633,8 +626,7 @@ elif self.expr in ['adc', 'adcb']:
 
     self.src.set(vm, val, byte=byte)
     
-    val = util.from_2_compl(val, byte=byte)
-    PSW['N'] = 1 if val < 0 else 0
+    PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['C'] = 1 if carry else 0
     PSW['V'] = 1 if overflow else 0
@@ -651,13 +643,11 @@ Assume source operand is 244 (-12), the dest operand will be 244 (-12).
 ```python
 if self.expr in ['mov', 'movb']:
     # Move
-    src_val = self.src.eval(vm, byte=byte)
-
-    self.dst.set(vm, src_val, byte=byte)
-
-    src_val = util.from_2_compl(src_val, byte)
-    PSW['N'] = 1 if src_val < 0 else 0
-    PSW['Z'] = 1 if src_val == 0 else 0
+    val = self.src.eval(vm, byte=byte)
+    self.dst.set(vm, val, byte=byte)
+  
+    PSW['N'] = 1 if val & msb else 0
+    PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = 0
 ```
 
@@ -835,8 +825,8 @@ elif self.expr in ['div', 'dvd']:
     else:
         qt, mod = divmod(dst, src)
 
-        self.dst_val.set(vm, qt)
-        vm.register[reg_list[reg_list.index(self.dst_val.reg) + 1]] = mod
+        self.dst.set(vm, qt)
+        vm.register[reg_list[reg_list.index(self.dst.reg) + 1]] = mod
 
         PSW['N'] = 1 if qt < 0 else 0
         PSW['Z'] = 1 if qt == 0 else 0
@@ -864,9 +854,9 @@ elif self.expr in ['als', 'ash']:
         carry = 1 if dst_val & 0x8000 else 0
         res = dst_val << shift
 
-    self.dst_val.set(vm, res)
+    self.dst.set(vm, res)
 
-    PSW['N'] = 1 if res & 0x8000 else 0
+    PSW['N'] = 1 if res & msb else 0
     PSW['Z'] = 1 if res == 0 else 0
     PSW['V'] = 1 if util.xor(res & 0x8000, dst_val & 0x8000) else 0
     PSW['C'] = carry
@@ -1040,6 +1030,8 @@ elif self.expr == 'jsr':
 
     vm.stack_push(src_val)
     self.src.set(vm, pc_val)
+
+    vm.set_PC(dst_val)
 ```
 
 **RTS**: Return from subroutine. Load content from register into PC and pops the top statement of the stack into the 
