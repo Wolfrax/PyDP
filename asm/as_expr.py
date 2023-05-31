@@ -149,7 +149,7 @@ class UnaryExpression:
     def eval(self, vm, byte=False, update=True):
         val = int(self.expr[:-1]) if self.expr[-1] == '.' else int(self.expr.replace("8", "10").replace("9", "11"), 8)
         if self.op == "-":
-            return util.to_2_compl(val, byte)
+            return util.to_2_compl(-val, byte)
         elif self.op == "!":
             val = util.to_byte(val) if byte else val
             return ~int(val) & 0xFFFF
@@ -426,9 +426,12 @@ class AddrIndex(Reg):
         # op: A
         if self.reg:
             op1 = util.from_2_compl(vm.register[self.reg], byte)
-            op2 = util.from_2_compl(self.expr.eval(vm), byte)
+            op2 = self.expr.eval(vm)
+            op2 = util.from_2_compl(op2, byte)
             address = op1 + op2
+
             assert address > 0, f"Addressing error: {address}"
+
             val = vm.mem.read(address, 1 if byte else 2)
         else:
             address = self.expr.eval(vm)
@@ -436,20 +439,28 @@ class AddrIndex(Reg):
 
         return val
 
-    def eval_address(self, vm, byte=False):
-        if self.reg:
-            address = vm.register[self.reg] + self.expr.eval(vm)
-        else:
-            address = self.expr.eval(vm)
-
-        return address
-
     def set(self, vm, val, byte=False):
         if self.reg:
-            address = vm.register[self.reg] + self.expr.eval(vm)
+            op1 = util.from_2_compl(vm.register[self.reg], False)
+            op2 = self.expr.eval(vm)
+            op2 = util.from_2_compl(op2, False)
+            address = op1 + op2
         else:
             address = self.expr.eval(vm)
+
+        assert address > 0, f"Addressing error: {address}"
+
         vm.mem.write(address, val, byte)
+
+    def eval_address(self, vm, byte=False):
+        if self.reg:
+            address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+        else:
+            address = self.expr.eval(vm)
+
+        assert address > 0, f"Addressing error: {address}"
+
+        return address
 
 
 class AddrIndexDeferred(Reg):
@@ -470,11 +481,12 @@ class AddrIndexDeferred(Reg):
     def eval(self, vm, byte=False):
         # op: *X(R): (X + R) is address to address
         if self.expr:
-            op1 = util.from_2_compl(vm.register[self.reg], byte)
-            op2 = util.from_2_compl(self.expr.eval(vm), byte)
+            #op1 = util.from_2_compl(vm.register[self.reg], byte)
+            op1 = vm.register[self.reg]
+            op2 = self.expr.eval(vm)
             address = op1 + op2
         else:
-            address = util.from_2_compl(vm.register[self.reg])
+            address = vm.register[self.reg]
 
         assert address > 0, f"Addressing error: {address}"
 
@@ -483,15 +495,23 @@ class AddrIndexDeferred(Reg):
         return val
 
     def set(self, vm, val, byte=False):
-        address = self.expr.eval(vm) + vm.register[self.reg]
+        address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+
+        assert address > 0, f"Addressing error: {address}"
+
         address = vm.mem.read(address, 2)
         vm.mem.write(address, val, byte)
 
     def eval_address(self, vm, byte=False):
         if self.expr is None:
+            # In this case, the value in register cannot be negative
             address = vm.register[self.reg]
         else:
-            address = self.expr.eval(vm) + vm.register[self.reg]
+            # Note that value in register can be negative!
+            address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+
+        assert address > 0, f"Addressing error: {address}"
+
         address = vm.mem.read(address, 2)
         return address
 
@@ -577,7 +597,7 @@ class AddrRelative(Reg):
 
     def set(self, vm, val, byte=False):
         if self.reg:
-            address = vm.register[self.reg] + self.expr.eval(vm)
+            address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
         else:
             address = self.expr.eval(vm)
         vm.mem.write(address, val, byte)

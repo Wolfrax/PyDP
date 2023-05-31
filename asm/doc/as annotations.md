@@ -233,15 +233,37 @@ def eval(self, vm, byte=False):
     # op: A
     if self.reg:
         op1 = util.from_2_compl(vm.register[self.reg], byte)
-        op2 = util.from_2_compl(self.expr.eval(vm), byte)
+        op2 = self.expr.eval(vm)
         address = op1 + op2
+        
         assert address > 0, f"Addressing error: {address}"
+        
         val = vm.mem.read(address, 1 if byte else 2)
     else:
         address = self.expr.eval(vm)
         val = vm.mem.read(address, 1 if byte else 2)
 
     return val
+
+def set(self, vm, val, byte=False):
+    if self.reg:
+        address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+    else:
+        address = self.expr.eval(vm)
+
+    assert address > 0, f"Addressing error: {address}"
+    
+    vm.mem.write(address, val, byte)
+
+def eval_address(self, vm, byte=False):
+    if self.reg:
+        address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+    else:
+        address = self.expr.eval(vm)
+    
+    assert address > 0, f"Addressing error: {address}"
+    
+    return address
 ```
 Additional comments:
 
@@ -273,16 +295,37 @@ def eval(self, vm, byte=False):
     # op: *X(R): (X + R) is address to address
     if self.expr:
         op1 = util.from_2_compl(vm.register[self.reg], byte)
-        op2 = util.from_2_compl(self.expr.eval(vm), byte)
+        op2 = self.expr.eval(vm)
         address = op1 + op2
     else:
-        address = util.from_2_compl(vm.register[self.reg])
+        address = vm.register[self.reg]
 
     assert address > 0, f"Addressing error: {address}"
     
     address = vm.mem.read(address, 2)
     val = vm.mem.read(address, 1 if byte else 2)
     return val
+    
+def set(self, vm, val, byte=False):
+    address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+    
+    assert address > 0, f"Addressing error: {address}"
+    
+    address = vm.mem.read(address, 2)
+    vm.mem.write(address, val, byte)
+    
+def eval_address(self, vm, byte=False):
+    if self.expr is None:
+        # In this case, the value in register cannot be negative
+        address = vm.register[self.reg]
+    else:
+        # Note that value in register can be negative!
+        address = self.expr.eval(vm) + util.from_2_compl(vm.register[self.reg], byte)
+    
+    assert address > 0, f"Addressing error: {address}"
+    
+    address = vm.mem.read(address, 2)
+    return address
 ```
 Additional comment:
 * X in front of register might be missing (eg `JMP *(R0)`), which is handled in the else-branch above.
@@ -644,8 +687,12 @@ Assume source operand is 244 (-12), the dest operand will be 244 (-12).
 if self.expr in ['mov', 'movb']:
     # Move
     val = self.src.eval(vm, byte=byte)
-    self.dst.set(vm, val, byte=byte)
-  
+    if self.expr == 'movb' and val & msb and isinstance(self.dst, as_expr.AddrRegister): # sign extend
+        val = 0xFF00 | val
+        self.dst.set(vm, val, byte=False)
+    else:
+        self.dst.set(vm, val, byte=byte)
+
     PSW['N'] = 1 if val & msb else 0
     PSW['Z'] = 1 if val == 0 else 0
     PSW['V'] = 0

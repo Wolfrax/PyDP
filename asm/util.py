@@ -1,10 +1,12 @@
 def to_2_compl(val, byte=True):
     bits = 8 if byte else 16
+
     return val if val >= 0 else (1 << bits) + val
 
 
 def from_2_compl(val, byte=True):
     bits = 8 if byte else 16
+
     if val < 0:
         return val
 

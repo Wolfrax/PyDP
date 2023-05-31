@@ -213,8 +213,15 @@ class VM:
             if cmd_line[1] == 'as2':
                 command = cmd_line[1] + ' ' + ''.join(elem + ' ' for elem in cmd_line[2:])
             else:
-                fnList = sorted(glob.glob(cmd_line[2]))
-                command = cmd_line[1] + ' ' + ''.join(elem + ' ' for elem in fnList)
+                if cmd_line[2] == '-':
+                    glob_dir = cmd_line[2] + ' '
+                    files = cmd_line[3]
+                else:
+                    glob_dir = ''
+                    files = cmd_line[2]
+
+                fnList = sorted(glob.glob(files))
+                command = cmd_line[1] + ' ' + glob_dir + ''.join(elem + ' ' for elem in fnList)
             args = command.split(' ')
 
             self.logger.info('Start {}'.format(args))
@@ -268,6 +275,7 @@ class VM:
 
             atexit.register(self.patch_aout)
             atexit.register(self.stats)
+            atexit.register(self.dump_trace)
 
     def memory(self, data):
         self.mem.init(data)
@@ -276,6 +284,7 @@ class VM:
         logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
 
     def dump_trace(self, trace_fn="trace.txt"):
+        self.logger.info(f"Dumping trace to {trace_fn}")
         with open(trace_fn, "w") as f:
             header = "{:<8}{:<30}{:<15}{:<15}{:<75}{:<25}".format("lineno", "keyword", "src", "dst",
                                                                   "post instr register values",
@@ -493,6 +502,7 @@ class VM:
         self.logger.info(f"No of memory accesses: {(mem_reads + mem_writes):,} "
                          f"(read: {mem_reads:,}, write {mem_writes:,})")
         self.logger.info(f"No of instructions executed: {self.counters['instr executed']:,}")
+
 
 if __name__ == '__main__':
     vm = VM(cmd_line=sys.argv)

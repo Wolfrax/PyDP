@@ -2,6 +2,7 @@ import os
 import stat
 import sys
 import util
+import as_expr
 
 
 class Stmt:
@@ -235,9 +236,15 @@ class KeywordStmt(Stmt):
             self.src.pre_dump_update(vm, byte=byte)
             self.dst.pre_dump_update(vm, byte=byte)
 
+            if self.expr in ['jsr', 'sob']:
+                dst_str = str(self.dst.eval_address(vm))
+            else:
+                dst_str = str(self.dst.eval(vm, byte=False))
+
+
             dump_str = "{:<8}{:<30}{:<15}{:<15}".format(lineno_str, kw_str,
-                                                        "src: " + str(self.src.eval(vm, byte=byte)),
-                                                        "dst: " + str(self.dst.eval(vm, byte=byte)))
+                                                        "src: " + str(self.src.eval(vm, byte=False)),
+                                                        "dst: " + dst_str)
 
             self.src.post_dump_update(vm, byte=byte)
             self.dst.post_dump_update(vm, byte=byte)
@@ -247,9 +254,15 @@ class KeywordStmt(Stmt):
         if self.src is not None:
             self.src.pre_dump_update(vm, byte=byte)
 
+            if self.expr in ['jmp', 'br', 'bcs', 'bne', 'bec', 'bes', 'blos', 'bpl', 'bge',
+                             'beq', 'bhi', 'blo', 'blt', 'bgt', 'ble', 'bhis', 'bcc', 'bvs', 'bmi']:
+                src_str = str(self.src.eval_address(vm, byte=byte))
+            else:
+                src_str = str(self.src.eval(vm, byte=byte))
+
             dump_str = "{:<8}{:<30}{:<15}{:<15}".format(lineno_str,
                                                         kw_str,
-                                                        "src: " + str(self.src.eval(vm, byte=byte)),
+                                                        "src: " + src_str,
                                                         "")
 
             self.src.post_dump_update(vm, byte=byte)
@@ -573,8 +586,14 @@ class KeywordStmt(Stmt):
 
         if self.expr in ['mov', 'movb']:
             # Move
-            val = self.src.eval(vm, byte=byte)
-            self.dst.set(vm, val, byte=byte)
+            #val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm, byte=False)
+            val = val & 0xFF if byte else val & 0xFFFF
+            if self.expr == 'movb' and val & msb and isinstance(self.dst, as_expr.AddrRegister): # sign extend
+                val = 0xFF00 | val
+                self.dst.set(vm, val, byte=False)
+            else:
+                self.dst.set(vm, val, byte=byte)
 
             PSW['N'] = 1 if val & msb else 0
             PSW['Z'] = 1 if val == 0 else 0
@@ -583,11 +602,21 @@ class KeywordStmt(Stmt):
             vm.incr_PC(1 + self.src.words() + self.dst.words())
         elif self.expr in ['cmp', 'cmpb']:
             # Compare
-            src_val = self.src.eval(vm, byte=byte)
-            src = util.from_2_compl(src_val, byte=byte)
+            #src_val = self.src.eval(vm, byte=byte)
+            #src = util.from_2_compl(src_val, byte=byte)
+            src_val = self.src.eval(vm, byte=False)
+            src = util.from_2_compl(src_val, byte=False)
 
-            dst_val = self.dst.eval(vm, byte=byte)
-            dst = util.from_2_compl(dst_val, byte=byte)
+            #dst_val = self.dst.eval(vm, byte=byte)
+            #dst = util.from_2_compl(dst_val, byte=byte)
+            dst_val = self.dst.eval(vm, byte=False)
+            dst = util.from_2_compl(dst_val, byte=False)
+            #dst_val = dst_val & 0xFF if byte else dst_val & 0xFFFF
+            if self.expr == 'cmpb':
+                src_val &= 0xFF
+                src &= 0xFF
+                dst_val &= 0xFF
+                dst &= 0xFF
 
             res = src - dst
             res_val = src_val - dst_val
@@ -955,6 +984,7 @@ class SyscallStmt(Stmt):
             vm.set_PC(syscall_address)
 
             if vm.prg:
+                vm.logger.debug(f"sys indir, calling {vm.prg.instructions[syscall_instr_ind]} @{syscall_instr_ind}")
                 vm.prg.instructions[syscall_instr_ind].exec(vm)
                 vm.set_PC(current_pc)
                 vm.incr_PC()
@@ -1168,6 +1198,9 @@ class SyscallStmt(Stmt):
                 byte_str = os.read(vm.register['r0'], nbytes)
                 vm.logger.debug('sys read {} (fd={}) {} bytes'.format(vm.files[vm.register['r0']],
                                                                       vm.register['r0'], len(byte_str)))
+                for ch in byte_str:
+                    vm.mem.write(buffer_addr, ch, byte=True)
+                    buffer_addr += 1
                 vm.register['r0'] = len(byte_str)
 
                 PSW['C'] = 0
@@ -1319,9 +1352,8 @@ class PseudoOpStmt(Stmt):
         if self.expr == '.byte':
             self.loc = vm.location_counter
             for op in self.operands:
-                val = op.eval(vm)
+                val = op.eval(vm,byte=True)
                 if isinstance(val, int):
-                    val = util.to_2_compl(val, byte=True)
                     vm.mem.write(vm.location_counter, val, byte=True)
                 else:
                     op = op.get(vm)
