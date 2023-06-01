@@ -481,7 +481,6 @@ class AddrIndexDeferred(Reg):
     def eval(self, vm, byte=False):
         # op: *X(R): (X + R) is address to address
         if self.expr:
-            #op1 = util.from_2_compl(vm.register[self.reg], byte)
             op1 = vm.register[self.reg]
             op2 = self.expr.eval(vm)
             address = op1 + op2

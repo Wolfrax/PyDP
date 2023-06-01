@@ -71,7 +71,7 @@ class Memory:
             return ret_length
 
     def read(self, pos, nr=2):
-        assert pos < len(self.memory), "Read outside memory {}".format(pos)
+        assert pos < len(self.memory) and pos >= 0, "Read outside memory {}".format(pos)
 
         self.counters['read'] += 1
 

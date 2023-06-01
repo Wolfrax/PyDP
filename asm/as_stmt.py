@@ -367,7 +367,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['ror', 'rorb']:
             # Rotate right, shift operand right, move the lowest bit in carry
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
             carry = PSW['C']
             PSW['C'] = val & 1
 
@@ -388,7 +389,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['rol', 'rolb']:
             # Rotate right, shift operand left, move the lowest bit in carry
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
             carry = val & msb
             PSW['C'] = carry
 
@@ -409,7 +411,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['adc', 'adcb']:
             # Add carry
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             val = val + PSW['C']
             overflow = val == msb
@@ -429,7 +432,8 @@ class KeywordStmt(Stmt):
             vm.incr_PC(1 + self.src.words())
 
         elif self.expr in ['neg', 'negb']:
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             val = util.from_2_compl(val, byte)
             val = -val
@@ -446,7 +450,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['tst', 'tstb']:
             # Test, set condition flags
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             PSW['N'] = 1 if val & msb else 0
             PSW['Z'] = 1 if val == 0 else 0
@@ -457,7 +462,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['inc', 'incb']:
             # Increment
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             overflow = val == (msb - 1)
             val += 1
@@ -473,7 +479,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['dec', 'decb']:
             # Decrement
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             overflow = val == msb
             val -= 1
@@ -532,7 +539,8 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['asl', 'aslb']:
             # Arithmetic shift left
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             if byte:
                 # The manual is ambiguous on byte operation, when general registers is used, byte operates on bit 0 - 7
@@ -540,9 +548,8 @@ class KeywordStmt(Stmt):
             else:
                 PSW['C'] = (val & msb) >> 15
 
-            val = util.from_2_compl(val, byte=byte)
             val <<= 1
-            val = util.to_2_compl(val, byte=False)
+
             self.src.set(vm, val, byte=False)
 
             PSW['N'] = 1 if val & msb else 0
@@ -553,13 +560,13 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['asr', 'asrb']:
             # Arithmetic shift right
-            val = self.src.eval(vm, byte=byte)
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
 
             PSW['C'] = val & 1
 
-            val = util.from_2_compl(val, byte)
             val = (val >> 1) | (val & msb)
-            val = util.to_2_compl(val, byte=byte)
+
             self.src.set(vm, val, byte=byte)
 
             PSW['N'] = 1 if val & msb else 0
@@ -586,12 +593,11 @@ class KeywordStmt(Stmt):
 
         if self.expr in ['mov', 'movb']:
             # Move
-            #val = self.src.eval(vm, byte=byte)
-            val = self.src.eval(vm, byte=False)
-            val = val & 0xFF if byte else val & 0xFFFF
+            val = self.src.eval(vm)
+            val &= 0xFF if byte else 0xFFFF
             if self.expr == 'movb' and val & msb and isinstance(self.dst, as_expr.AddrRegister): # sign extend
                 val = 0xFF00 | val
-                self.dst.set(vm, val, byte=False)
+                self.dst.set(vm, val)
             else:
                 self.dst.set(vm, val, byte=byte)
 
@@ -602,29 +608,18 @@ class KeywordStmt(Stmt):
             vm.incr_PC(1 + self.src.words() + self.dst.words())
         elif self.expr in ['cmp', 'cmpb']:
             # Compare
-            #src_val = self.src.eval(vm, byte=byte)
-            #src = util.from_2_compl(src_val, byte=byte)
-            src_val = self.src.eval(vm, byte=False)
-            src = util.from_2_compl(src_val, byte=False)
+            src = self.src.eval(vm)
+            src &= 0xFF if byte else 0xFFFF
 
-            #dst_val = self.dst.eval(vm, byte=byte)
-            #dst = util.from_2_compl(dst_val, byte=byte)
-            dst_val = self.dst.eval(vm, byte=False)
-            dst = util.from_2_compl(dst_val, byte=False)
-            #dst_val = dst_val & 0xFF if byte else dst_val & 0xFFFF
-            if self.expr == 'cmpb':
-                src_val &= 0xFF
-                src &= 0xFF
-                dst_val &= 0xFF
-                dst &= 0xFF
+            dst = self.dst.eval(vm)
+            dst &= 0xFF if byte else 0xFFFF
 
             res = src - dst
-            res_val = src_val - dst_val
 
-            PSW['N'] = 1 if res < 0 else 0
+            PSW['N'] = 1 if res & msb else 0
             PSW['Z'] = 1 if res == 0 else 0
-            PSW['V'] = 1 if ((src_val ^ dst_val) & msb) and not ((dst_val ^ res_val) & msb) else 0
-            PSW['C'] = 1 if src_val < dst_val else 0
+            PSW['V'] = 1 if ((src ^ dst) & msb) and not ((dst ^ res) & msb) else 0
+            PSW['C'] = 1 if src < dst else 0
 
             vm.incr_PC(1 + self.src.words() + self.dst.words())
 
@@ -632,78 +627,67 @@ class KeywordStmt(Stmt):
             # Jump subroutine
             pc_val = vm.incr_PC(1 + self.src.words() + self.dst.words())
 
-            src_val = self.src.eval(vm)
-            dst_val = self.dst.eval_address(vm)
+            src = self.src.eval(vm)
+            dst = self.dst.eval_address(vm)
 
-            vm.stack_push(src_val)
+            vm.stack_push(src)
             self.src.set(vm, pc_val)
 
-            vm.set_PC(dst_val)
+            vm.set_PC(dst)
 
         elif self.expr == 'add':
             # Add :-)
-            src_val = self.src.eval(vm)
-            src = util.from_2_compl(src_val, byte=byte)
+            src = self.src.eval(vm)
+            dst = self.dst.eval(vm)
 
-            dst_val = self.dst.eval(vm)
-            dst = util.from_2_compl(dst_val, byte=byte)
-
-            res_val = src_val + dst_val
             res = src + dst
+            res = util.to_2_compl(res, byte=False)
 
-            self.dst.set(vm, res_val)
+            self.dst.set(vm, res)
 
-            PSW['N'] = 1 if res < 0 else 0
+            PSW['N'] = 1 if res & msb else 0
             PSW['Z'] = 1 if res == 0 else 0
-            PSW['V'] = 1 if not ((src_val ^ dst_val) & msb) and ((dst_val ^ res_val) & msb) else 0
-            PSW['C'] = 1 if res_val >= 0xFFFF else 0
+            PSW['V'] = 1 if not ((src ^ dst) & msb) and ((dst ^ res) & msb) else 0
+            PSW['C'] = 1 if res >= 0xFFFF else 0
 
             vm.incr_PC(1 + self.src.words() + self.dst.words())
 
         elif self.expr == 'sub':
             # Subtract
-            src_val = self.src.eval(vm)
-            src = util.from_2_compl(src_val, byte=byte)
+            src = self.src.eval(vm)
+            dst = self.dst.eval(vm)
 
-            dst_val = self.dst.eval(vm)
-            dst = util.from_2_compl(dst_val, byte=byte)
+            res = dst + ~src + 1
+            res = util.to_2_compl(res, byte=False)
 
-            res_val = dst_val - src_val
-            res = dst - src
-
-            PSW['N'] = 1 if res < 0 else 0
-
-            res = util.to_2_compl(res, byte)
             self.dst.set(vm, res)
 
+            PSW['N'] = 1 if res & msb else 0
             PSW['Z'] = 1 if res == 0 else 0
-            PSW['V'] = 1 if ((src_val ^ dst_val) & msb) and not ((dst_val ^ res_val) & msb) else 0
-            PSW['C'] = 1 if src_val > dst_val else 0
+            PSW['V'] = 1 if ((src ^ dst) & msb) and not ((dst ^ res) & msb) else 0
+            PSW['C'] = 1 if src > dst else 0
 
             vm.incr_PC(1 + self.src.words() + self.dst.words())
 
         elif self.expr in ['mul', 'mpy']:
             # Multiply
-            src_val = self.src.eval(vm)
-            src = util.from_2_compl(src_val, byte=byte)
+            src = self.src.eval(vm)
 
             reg_list = list(vm.register)
             dst_reg = reg_list[reg_list.index(self.dst.reg)]
-            dst_val = vm.register[dst_reg]
-            dst = util.from_2_compl(dst_val, byte=byte)
+            dst = vm.register[dst_reg]
 
-            res_val = dst_val * src_val
             res = dst * src
-            res = util.to_2_compl(res, byte)
+            res = util.to_2_compl(res, byte=False)
 
             if reg_list.index(self.dst.reg) % 2 == 0:
                 vm.register[dst_reg + 1] = (res & 0xFFFF0000) >> 16
             vm.register[dst_reg] = res & 0xFFFF
 
-            PSW['N'] = 1 if res_val & 0x80000000 else 0
-            PSW['Z'] = 1 if (res_val & 0xFFFFFFFF) == 0 else 0
+            PSW['N'] = 1 if res & 0x80000000 else 0
+            PSW['Z'] = 1 if (res & 0xFFFFFFFF) == 0 else 0
             PSW['V'] = 0
-            PSW['C'] = 1 if res_val < (1 << 15) or res_val >= ((1 << 15) - 1) else 0
+            PSW['C'] = 1 if res < (1 << 15) or res >= ((1 << 15) - 1) else 0
 
             vm.incr_PC(1 + self.src.words() + self.dst.words())
 
@@ -711,21 +695,21 @@ class KeywordStmt(Stmt):
             # Divide
             reg_list = list(vm.register)
 
-            src_val = self.src.eval(vm)
-            src = util.from_2_compl(src_val, byte)
+            src = self.src.eval(vm)
 
-            dst_val = vm.register[reg_list[reg_list.index(self.dst.reg) + 1]]
-            dst = util.from_2_compl(dst_val, byte)
+            dst = vm.register[reg_list[reg_list.index(self.dst.reg) + 1]]
 
-            if src_val == 0:
+            if src == 0:
                 PSW['C'] = 1
             else:
                 qt, mod = divmod(dst, src)
+                qt = util.to_2_compl(qt, byte=False)
+                mod = util.to_2_compl(mod, byte=False)
 
                 self.dst.set(vm, qt)
                 vm.register[reg_list[reg_list.index(self.dst.reg) + 1]] = mod
 
-                PSW['N'] = 1 if qt < 0 else 0
+                PSW['N'] = 1 if qt & msb else 0
                 PSW['Z'] = 1 if qt == 0 else 0
                 PSW['V'] = 0
                 PSW['C'] = 0
@@ -735,9 +719,8 @@ class KeywordStmt(Stmt):
         elif self.expr == 'sob':
             # Subtract 1 and branch if not 0
             src = self.src.eval(vm)
-            src_val = util.from_2_compl(src, byte)
-            src_val -= 1
-            src = util.to_2_compl(src_val)
+            src -= 1
+            src = util.to_2_compl(src)
             self.src.set(vm, src)
 
             if src != 0:
@@ -815,7 +798,10 @@ class KeywordStmt(Stmt):
         elif self.expr in ['bic', 'bicb']:
             # Bit clear
             src = self.src.eval(vm)
+            src &= 0xFF if byte else 0xFFFF
+
             dst = self.dst.eval(vm)
+            dst &= 0xFF if byte else 0xFFFF
 
             res = (max ^ src) & dst
             self.dst.set(vm, res, byte=byte)
@@ -828,8 +814,11 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['bis', 'bisb']:
             # Bit set
-            src = self.src.eval(vm, byte=byte)
-            dst = self.dst.eval(vm, byte=byte)
+            src = self.src.eval(vm)
+            src &= 0xFF if byte else 0xFFFF
+
+            dst = self.dst.eval(vm)
+            dst &= 0xFF if byte else 0xFFFF
 
             res = src | dst
             self.dst.set(vm, res, byte=byte)
@@ -842,8 +831,11 @@ class KeywordStmt(Stmt):
 
         elif self.expr in ['bit', 'bitb']:
             # Bit and
-            src = self.src.eval(vm, byte=byte)
-            dst = self.dst.eval(vm, byte=byte)
+            src = self.src.eval(vm)
+            src &= 0xFF if byte else 0xFFFF
+
+            dst = self.dst.eval(vm)
+            dst &= 0xFF if byte else 0xFFFF
 
             res = src & dst
 
@@ -984,7 +976,7 @@ class SyscallStmt(Stmt):
             vm.set_PC(syscall_address)
 
             if vm.prg:
-                vm.logger.debug(f"sys indir, calling {vm.prg.instructions[syscall_instr_ind]} @{syscall_instr_ind}")
+                vm.logger.debug(f"sys indir, calling {vm.prg.instructions[syscall_instr_ind]}")
                 vm.prg.instructions[syscall_instr_ind].exec(vm)
                 vm.set_PC(current_pc)
                 vm.incr_PC()
@@ -1352,7 +1344,7 @@ class PseudoOpStmt(Stmt):
         if self.expr == '.byte':
             self.loc = vm.location_counter
             for op in self.operands:
-                val = op.eval(vm,byte=True)
+                val = op.eval(vm, byte=True)
                 if isinstance(val, int):
                     vm.mem.write(vm.location_counter, val, byte=True)
                 else:
