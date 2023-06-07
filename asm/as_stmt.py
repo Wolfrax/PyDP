@@ -388,23 +388,18 @@ class KeywordStmt(Stmt):
             vm.incr_PC(1 + self.src.words())
 
         elif self.expr in ['rol', 'rolb']:
-            # Rotate right, shift operand left, move the lowest bit in carry
+            # Rotate left, shift operand left, move the lowest bit in carry
             val = self.src.eval(vm)
             val &= 0xFF if byte else 0xFFFF
             carry = val & msb
-            PSW['C'] = carry
 
-            if byte:
-                # The manual is ambiguous on byte operation, when general registers is used, byte operates on bit 0 - 7
-                val = ((val & 0xFF) << 1) | carry
-            else:
-                val = (val << 1) | carry
+            val = (val << 1) | PSW['C']
 
             self.src.set(vm, val, byte=False)
 
             PSW['N'] = 1 if val & msb else 0
             PSW['Z'] = 1 if val == 0 else 0
-            PSW['C'] = carry
+            PSW['C'] = 1 if carry else 0
             PSW['V'] = PSW['N'] ^ PSW['C']
 
             vm.incr_PC(1 + self.src.words())

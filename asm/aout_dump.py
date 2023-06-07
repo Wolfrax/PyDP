@@ -289,11 +289,12 @@ class InstrSingle(Instr):
             else:
                 self.dst_op.name = vm.sym_table.find(self.dst_op.addr + vm.pc)
 
+        self.reloc_str = vm.decode_reloc() if vm.reloc else ""
         vm.pc += self.dst_op.size
         vm.pc += 2
 
     def __str__(self):
-        return "{:<8} {:>8}".format(self.op, str(self.dst_op))
+        return "{: <10} {: >10}{} {: >10} {: >32}".format(self.op, str(self.dst_op), " ", " ", self.reloc_str)
 
 
 class InstrDouble(Instr):
@@ -309,6 +310,7 @@ class InstrDouble(Instr):
 
         self.src_op = self.new_operand(src_mode, src_reg)
         vm.pc += self.src_op.size
+        self.reloc_str = vm.decode_reloc() if vm.reloc else ""
         if self.src_op.addr:
             if src_reg == 7:
                 self.src_op.name = vm.sym_table.find(self.src_op.addr)
@@ -318,16 +320,18 @@ class InstrDouble(Instr):
 
         self.dst_op = self.new_operand(dst_mode, dst_reg)
         vm.pc += self.dst_op.size
+        self.reloc_str += ("; " + vm.decode_reloc()) if vm.reloc else ""
         if self.dst_op.addr:
             if dst_reg == 7:
-                self.dst_op.name = vm.sym_table.find(self.src_op.addr)
+                self.dst_op.name = vm.sym_table.find(self.dst_op.addr)
             else:
                 self.dst_op.name = vm.sym_table.find(self.dst_op.addr + vm.pc)
 
         vm.pc += 2
 
     def __str__(self):
-        return "{:<8} {:>8}, {:>8}".format(self.op, str(self.src_op), str(self.dst_op))
+        return "{: <10} {: >10}{} {: >10} {: >32}".format(self.op, str(self.src_op), ",", str(self.dst_op),
+                                                          " ", self.reloc_str)
 
 
 class InstrBranch(Instr):
@@ -337,19 +341,26 @@ class InstrBranch(Instr):
         super().__init__(vm, op)
         self.offset = vm.word & 0o0377
         self.name = vm.sym_table.find(vm.pc + 2 + (2 * self.offset))
+        self.reloc_str = vm.decode_reloc() if vm.reloc else ""
         vm.pc += 2
 
 
     def __str__(self):
-        return "{:<8} {:>8}".format(self.op, self.offset if self.name is None else self.name)
+        return "{: <10} {: >10}{} {: >10} {: >32}".format(self.op,
+                                                          self.offset if self.name is None else self.name,
+                                                          " ",
+                                                          " ",
+                                                          self.reloc_str)
 
 
 class InstrSyscall(Instr):
     # indir, exit, fork, read, write, open, close, wait, creat, link, unlink, exec, chdir, time, makdir, chmod,
-    # chown, break, stat, seek, tell, mount, umout, setuid, getuid, stime, fstat, mdate, stty, gtty, nice, signal
+    # chown, break, stat, seek, tell, mount, umount, setuid, getuid, stime, fstat, mdate, stty, gtty, nice, signal
 
     def __init__(self, vm, op):
         super().__init__(vm, op)
+
+        self.reloc_str = ""
 
         self.syscall = instrLUT.get_syscall(vm.word & 0o0077)
 
@@ -359,6 +370,7 @@ class InstrSyscall(Instr):
 
         elif self.syscall in ['indir', 'unlink', 'chdir', 'break', 'umount', 'stty', 'gtty']:
             sys_addr = vm.memory.read(vm.pc + 2)
+            self.reloc_str += vm.decode_reloc(2) if vm.reloc else ""
             self.par = [
                 {'addr': sys_addr, 'name': None}
             ]
@@ -366,7 +378,9 @@ class InstrSyscall(Instr):
         elif self.syscall in ['read', 'write', 'open', 'creat', 'link', 'exec',
                               'chmod', 'chown', 'stat', 'seek', 'signal']:
             sys_addr1 = vm.memory.read(vm.pc + 2)
+            self.reloc_str += vm.decode_reloc(2) if vm.reloc else ""
             sys_addr2 = vm.memory.read(vm.pc + 4)
+            self.reloc_str += vm.decode_reloc(4) if vm.reloc else ""
             self.par = [
                 {'addr': sys_addr1, 'name': None},
                 {'addr': sys_addr2, 'name': None}
@@ -374,8 +388,11 @@ class InstrSyscall(Instr):
 
         elif self.syscall in ['makdir', 'mount']:
             sys_addr1 = vm.memory.read(vm.pc + 2)
+            self.reloc_str += vm.decode_reloc(2) if vm.reloc else ""
             sys_addr2 = vm.memory.read(vm.pc + 4)
+            self.reloc_str += vm.decode_reloc(4) if vm.reloc else ""
             sys_addr3 = vm.memory.read(vm.pc + 6)
+            self.reloc_str += vm.decode_reloc(6) if vm.reloc else ""
             self.par = [
                 {'addr': sys_addr1, 'name': None},
                 {'addr': sys_addr2, 'name': None},
@@ -396,9 +413,15 @@ class InstrSyscall(Instr):
     def __str__(self):
         par_str = ""
         for par in self.par:
-            par_str += "{:>8}".format(par['name'] if par['name'] is not None else par['addr'])
+            par_str += "{: >10}".format(par['name'] if par['name'] is not None else par['addr'])
+        if len(par_str) < 30:
+            par_str = (30 - len(par_str)) * " " + par_str
 
-        return "{:<8} {:>8}{} {:>8}".format(self.op, self.syscall, ";" if par_str != "" else "", par_str)
+        return "{: <10} {: >10}{} {: >10} {:>12}".format(self.op,
+                                                          self.syscall,
+                                                          ";" if par_str != "" else "",
+                                                          par_str,
+                                                          self.reloc_str)
 
 
 class InstrPrgCntrl(Instr):
@@ -421,13 +444,16 @@ class InstrPrgCntrl(Instr):
         self.src_op = self.new_operand(Instr.REGISTER, src_reg)
 
         vm.pc += self.dst_op.size
+        self.reloc_str = vm.decode_reloc() if vm.reloc else ""
+
         vm.pc += 2
 
     def __str__(self):
         if self.op == 'jsr':
-            return "{: <8} {: >8}, {: >8}".format(self.op, str(self.src_op), str(self.dst_op))
+            return "{: <10} {: >10}{} {: >10} {: >32}".format(self.op, str(self.src_op), ",", str(self.dst_op),
+                                                              self.reloc_str)
         else:
-            return "{:<8} {:>8}".format(self.op, str(self.dst_op))
+            return "{: <10} {: >10}{} {: >10} {: >32}".format(self.op, str(self.dst_op), " ", " ", self.reloc_str)
 
 
 class InstrMisc(Instr):
@@ -438,7 +464,7 @@ class InstrMisc(Instr):
         vm.pc += 2
 
     def __str__(self):
-        return "{:<8}".format(self.op)
+        return "{: <10}".format(self.op)
 
 
 class AOut:
@@ -455,6 +481,11 @@ class AOut:
 
         sym_start = (1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data'))
         self.sym_table = SymTable(self, sym_start, sym_start + self.head.get('sym'))
+
+        if self.head.get('reloc') == 0:  # Suppress reloc info is off
+            self.reloc = self.head.get('txt') + self.head.get('data')
+        else:
+            self.reloc = None
 
     def decode_instr(self):
         self.word = self.memory.read(self.pc)
@@ -489,6 +520,32 @@ class AOut:
             return None
 
 
+    def decode_reloc(self, offset=0):
+        reloc_word = self.memory.read(self.pc + offset + self.reloc)
+        if reloc_word == 0:
+            return ""
+
+        reloc_str = "<"
+
+        reloc_str += "r_" if reloc_word & 0x01 else "a_"
+        reloc_word &= 0xE
+        if reloc_word == 0:
+            reloc_str += "a"
+        elif reloc_word == 2:
+            reloc_str += "t"
+        elif reloc_word == 4:
+            reloc_str += "d"
+        elif reloc_word == 6:
+            reloc_str += "b"
+        elif reloc_word == 8:
+            reloc_str += "u"
+            reloc_str += str(reloc_word >> 4)
+        else:
+            pass
+
+        return reloc_str + ">"
+
+
     def dump(self):
         print(self.head)
         print(self.sym_table)
@@ -517,6 +574,7 @@ class AOut:
                         and_str = " & "
 
                 word_str += (": " + src_op_str + and_str + dst_op_str)
+
                 print(f"{self.pc:0<#8o} [{self.pc:0>8}] -> {{{word_str: <29}}} => {str(instr): <50}")
             else:
                 self.pc += (self.pc + 2)
