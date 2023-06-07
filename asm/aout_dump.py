@@ -547,6 +547,36 @@ class AOut:
 
 
     def dump(self):
+        help_text = f"""
+        This will dump the file {self.name}.
+        
+        Dump is in 3 sections:
+        1. Header information
+        2. Symbol table
+        3. Instructions
+        
+        For symbols, the following abbreviations is used for types:
+        'u' - undefined symbol
+        'a' - absolute symbol
+        't' - text segment symbol
+        'd' - data segment symbol
+        'b' - bss segment symbol
+        'F' - File name symbol (produced by ld)
+        'U' - Undefined external (.globl) symbol
+        'A' - Absolute external symbol
+        'T' - Text segment external symbol
+        'D' - Data segment external symbol
+        'B' - Bss segement external symbol
+        
+        For instructions, the relocation information is shown within <>-string, using the same abbreviations as for
+        symbols and a prefix. Prefixes are 'r_' for relative pc and 'a_' for actual symbol. See a.out manual page.
+        
+        Dump tries to do a go job of dumping instructions and looking up symbolic names of operands.
+        Due to the architecture of PDP instruction set, it is impossible to tell is a word is instruction or data, so
+        the output might be in error due to this.
+        """
+
+        print(help_text)
         print(self.head)
         print(self.sym_table)
         print(2*"\n" + "--X--" + 2*"\n")
