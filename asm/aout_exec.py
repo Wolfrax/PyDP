@@ -98,6 +98,7 @@ class Instr:
     AUTOINCREMENT = 2
     IMMEDIATE = 2
     AUTOINCREMENT_DEFERRED = 3
+    ABSOLUTE = 3
     AUTODECREMENT = 4
     AUTODECREMENT_DEFERRED = 5
     INDEX = 6
@@ -125,11 +126,10 @@ class Instr:
                 return as_expr.AddrImmediate(as_expr.Expression(str(expr) + "."), sym_name=name)
             else:
                 return as_expr.AddrAutoIncrement(reg)
-        elif mode == self.AUTOINCREMENT_DEFERRED:
-            if reg == 'pc':
+        elif mode == self.AUTOINCREMENT_DEFERRED or mode == self.ABSOLUTE:
+            if reg == 'pc':  # mode == ABSOLUTE
                 addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
                 expr = self.vm.mem.read(addr)
-                expr = util.from_2_compl(expr, False)
                 name = self.aout.sym_table.find(addr)
                 return as_expr.AddrAbsolute(as_expr.Expression(str(expr) + "."), sym_name=name)
             else:
@@ -141,7 +141,7 @@ class Instr:
         elif mode == self.INDEX or mode == self.RELATIVE:
             if reg == 'pc':  # RELATIVE
                 addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                addr = util.from_2_compl(addr, False) + self.vm.get_PC() + 4
+                addr = util.from_2_compl(addr, False) + self.vm.get_PC() + 4 + offset  # <-- NOTE
                 name = self.aout.sym_table.find(addr)
                 return as_expr.AddrRelative(as_expr.Expression(str(addr) + "."), sym_name=name)
             else:
@@ -150,33 +150,25 @@ class Instr:
                     name = self.aout.sym_table.find(expr)
                     return as_expr.AddrIndex(None, as_expr.Expression(str(expr) + "."), sym_name=name)
                 else:
-                    #expr = self.vm.register[reg] + self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                    #expr = self.vm.get_PC() + 2 + offset
                     expr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                    #expr = util.from_2_compl(expr, False)
+                    expr = util.from_2_compl(expr, False)
                     name = self.aout.sym_table.find(self.vm.mem.read(self.vm.get_PC() + 2 + offset))
                     return as_expr.AddrIndex(reg, as_expr.Expression(str(expr) + "."), sym_name=name)
         elif mode == self.INDEX_DEFERRED or mode == self.RELATIVE_DEFERRED:
             if reg == 'pc':  # RELATIVE DEFERRED
                 addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                addr = self.vm.get_PC() + 4 + util.from_2_compl(addr, False)
-                addr = util.from_2_compl(addr, False)
+                addr = util.from_2_compl(addr, False) + self.vm.get_PC() + 4 + offset
                 name = self.aout.sym_table.find(addr)
                 return as_expr.AddrRelativeDeferred(as_expr.Expression(str(addr) + "."), sym_name=name)
             else:
                 # Note, we add register value to address only when trying to find the symbol name.
                 # When executing the statement that refers to the expression with the address, the value of
                 # the register is added there.
-                #addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
-                #addr = util.from_2_compl(addr, False)
-                #name = self.aout.sym_table.find(addr + self.vm.register[reg])
-                #return as_expr.AddrIndexDeferred(reg, as_expr.Expression(str(addr) + "."), sym_name=name)
-
                 addr = self.vm.mem.read(self.vm.get_PC() + 2 + offset)
                 addr = util.from_2_compl(addr, False)
                 name = self.aout.sym_table.find(addr + self.vm.register[reg])
-                #return as_expr.AddrIndexDeferred(reg, as_expr.Expression(str(addr) + "."), sym_name=name)
-                return as_expr.AddrIndex(reg, as_expr.Expression(str(addr) + "."), sym_name=name)
+                return as_expr.AddrIndexDeferred(reg, as_expr.Expression(str(addr) + "."), sym_name=name)
+
 
     def __str__(self):
         pass
@@ -184,39 +176,6 @@ class Instr:
 
 class InstrSingle(Instr):
     # CLR(B), COM(B), INC(B), DEC(B), NEG(B), TST(B), ASR(B), ASL(B), ROR(B), ROL(B), SWAB, ADC(B), SBC(B), SXT
-    #
-    # Note, in aout-file, negative numbers are stored in 2's complement, for example -12 will have the bit-pattern
-    # of value 244. So, we must treat all values as 2-complement when reading form memory and writing to memory.
-    # When interpreting assembler-files (when running asm.py) we take the lazy way out and treat negative values as
-    # negative values, i e not in 2's-complement format. But somewhere in the assembler file negative values are
-    # transformed to 2's complement (not figured out where this is done however).
-    # Below is a systematic review of instructions with respect to 2's complement.
-    #
-    # 2's compl handling, assuming dst-op has value 244 (which is -12 in 2's complement):
-    # Notation:
-    #   => is conversion to 2's compl,
-    #   !=> is conversion from 2's compl
-    #   --> is the operation when executing a statement,
-    #   mem(x) sets memory to x.
-    #
-    # CLR(B): dst-op 244 --> mem(0) - OK!
-    # COM(B): dst-op 244 => 244 --> ~244 = -245, mem(-245)
-    #   Check this! Should be 244 ^ 0xFFF --> 11, if positive: 3 ^ 0xFF = 252
-    # INC(B): dst-op 244 => 244 --> 244+1 = 245 !=> -11, mem(-11) (should be mem(1<<8 - 11 = 245))
-    # DEC(B): dst-op 244 => 244 --> 244-1 = 243 !=> -13, mem(-13) (should be mem(1<<8 - 13 = 243))
-    # NEG(B): dst-op 244 --> -244, mem(-244) NOT CORRECT! Should be 12!
-    #   dst-op 244 !=> -12 -->  12 =>  12, mem(12)
-    #   dst-op  12 !=>  12 --> -12 => 244, mem(244)
-    # TST(B): dst-op 244, set N to 1 if MSB is set, true for 244 - OK!
-    # ASR(B): dst-op 244 => 244 --> (244 >> 1) | (244 & 0x80) = 250 (which is 250 - 256 = -6) OK!
-    # ASL(B): dst-op 244 => 244 --> 244 << 1 = 488, mem(488) NOT CORRECT! Should be 232!
-    #   dst-op (244 << 1) & 0xFF = 232, mem (232). 232 - 256 = - 24 which is correct
-    # ROR(B): dst-op 244 => 244 --> (244 >> 1) | ((244 & 1) << 7) = 122 - OK!
-    # ROL(B): dst-op 244 => 244 --> (244 << 1) | (1 if 244 & 0x80 else 0) = 489, mem(489) NOT CORRECT! Should be 233
-    #   dst-op ((244 << 1) | 1) & 0xFF = 233
-    # SWAB: dst-op 244 => 244 --> ((244 & 0xFF) << 8) | ((244 & 0xFF00) >> 8) = 62464 - OK!
-    # ADC(B): dst-op 244 => 244 --> 244 + Carry = 244 or 245 !=> -12 or -11 mem (-12 or -11) (should be 244 or 245)
-    # SBC(B): NOT IMPlEMENTED!
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
@@ -229,43 +188,18 @@ class InstrSingle(Instr):
 
 class InstrDouble(Instr):
     # MOV(B), CMP(B), ADD, SUB, BIT(B), BIC(B), BIS(B), MUL, DIV, ASH, ASHC, XOR
-    #
-    # 2's complement
-    #   MOV(B): Move from src to dst, all modes possible. Thus, 2's complement needs to be managed in mode
-    #   CMP(B): Compare src-op and dst-op, all modes possible.
-    #   Should convert operands from 2's complement for operation
-    #   a) src-op 244 (-12) & dst-op 12 --> 244 - 12 = 232 (-24) OK
-    #   b) src-op 12 & dst-op 244 --> 12 - 244 = -232 NOT OK
-    #   c) src-op 245 (-11) & dst-op 244 (-12) => 245 & 244 --> 245 - 244 = 1 OK
-    #   ADD: Add src-op and dst-op, all modes possible
-    #   Should convert from 2's complement for operation
-    #   a) src-op 244 (-12) & dst-op 12 --> 244 + 12 = 256 NOT OK
-    #   b) src-op 12 & dst-op 244 (-12) --> 12 + 244 = 256 NOT OK
-    #   c) src-op 245 (-11) & dst-op 244 (-12) --> 245 + 244 = 489 - NOT OK
-    #   SUB: Subtract src from dst (dst - src), all modes possible
-    #   Should convert from 2's complement for operation
-    #   a) src-op 244 (-12) & dst-op 12 --> 12 - 244 = - 232 NOT OK
-    #   b) src-op 12 & dst-op 244 (-12) --> 244 - 12 = 232 (-24) OK
-    #   c) src-op 245 (-11) & dst-op 244 (-12) --> 244 - 245 = -1 OK
-    #   BIT(B): Bit-wise logical AND between src-op and dst-op, all modes possible
-    #   Should work in 2's complement
-    #   a) src-op 244 (-12) & dst-op 12 --> 244 & 12 = 4 OK
-    #   b) src-op 12 & dst-op 244 (-12) --> 12 & 244 = 4 OK
-    #   c) src-op 245 (-11) & dst-op 244 (-12) --> 245 & 244 = 244 OK
-    #   BIC(B): Bit clear, ~src & dst ((0xFF ^ src) & dst)
-    # To be continued...
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
 
         if op in ['mul', 'div', 'ash', 'ashc', 'xor']:
-            reg = (aout.word & 0o0700) >> 6
+            dst_mode = Instr.REGISTER
+            dst_reg = (aout.word & 0o0700) >> 6
             src_mode = (aout.word & 0o0070) >> 3
             src_reg  = (aout.word & 0o0007)
-            dst_mode = Instr.REGISTER
 
             src_expr = self.new_expr(src_mode, src_reg)
-            dst_expr = self.new_expr(dst_mode, reg)
+            dst_expr = self.new_expr(dst_mode, dst_reg)
             self.stmt = as_stmt.KeywordStmt(self.vm.get_PC(), self.op, src_expr, dst_expr)
         else:
             src_mode = (aout.word & 0o7000) >> 9
@@ -280,10 +214,6 @@ class InstrDouble(Instr):
 
 class InstrBranch(Instr):
     # BR, BNE, BEQ, BPL, BMI, BVC, BVS, BCC, BCS, BGE, BLT, BGT, BLE, BHI, BLOS, SOB
-    #
-    # 2's complement:
-    # All Branch instructions OK wrt 2's complement
-    # SOB: src-op 244 --> 244 - 1 = 243, reg(243). 243 == -13 OK!
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
@@ -301,7 +231,7 @@ class InstrBranch(Instr):
             mode = Instr.INDEX
             offset = aout.word & 0o0377
             if offset & 0o0200:
-                offset = -((offset & 0o0177 ^ 0o177) + 1)  # sign bit set, make offset negative through 2's complement
+                offset = -((offset & 0o0177 ^ 0o0177) + 1)  # sign bit set, make offset negative through 2's complement
             expr = self.new_expr(mode, None, None, offset)
             self.stmt = as_stmt.KeywordStmt(self.vm.get_PC(), self.op, expr)
 
@@ -309,18 +239,6 @@ class InstrBranch(Instr):
 class InstrSyscall(Instr):
     # indir, exit, fork, read, write, open, close, wait, creat, link, unlink, exec, chdir, time, makdir, chmod,
     # chown, break, stat, seek, tell, mount, umout, setuid, getuid, stime, fstat, mdate, stty, gtty, nice, signal
-    #
-    # 2's complement:
-    # read and write system calls use to/from 2's complement.
-    #
-    # write: if value to write is < 0: Convert to 2's complement. However, if memory values are already in
-    #   2's complement the condition of < 0 will never be met.
-    #   But, if val < 0 (not in 2's complement format), we currently convert to 2's complement (-12 will be 244)
-    #   And write the lower byte first, then the higher byte. This is strange as a small negative number will only
-    #   use 1 byte and not two!? <-- INVESTIGATE
-    #
-    # read: all bytes read are converted from 2's complement (ie 244 will be -12) then written to memory.
-    #   This should be changed of making no conversion from 2's complement, simply read bytes and store in memory
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
@@ -408,19 +326,6 @@ class InstrSyscall(Instr):
 
 class InstrPrgCntrl(Instr):
     # JMP, JSR, RTS, MARK, BPT, IOT, RTI, RTT
-    #
-    # 2's complement:
-    # JMP: Will jump to an address which is not negative.
-    #   JMP can be made in all addressing modes except 0 (Register). See modes for managing 2's complements
-    # JSR: Same comment as for JMP
-    # RTS: 2's complement no issue
-    # MARK: Not implemented
-    # BPT: Not implemented
-    # IOT: Not implemented
-    # RTI: Not implemented
-    # RTT: Not implemented
-    #
-
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
@@ -450,15 +355,6 @@ class InstrPrgCntrl(Instr):
 
 class InstrMisc(Instr):
     # HALT, WAIT, RESET, MFPI, MTPI, CLC, CLV, CLZ, CLN, SEC, SEV, SEZ, SEN, SCC, CCC, NOP
-    #
-    # 2's complement:
-    #   HALT: Not implemented
-    #   WAIT: Not implemented
-    #   RESET: Not implemented
-    #   MFPI: Not implemented
-    #   MTPI: Not implemented
-    #   CLC, CLV, CLZ, CLN, SEC, SEN, SCC, CCC, NOP: Not implemented
-    #   SEV: Set V - no issue with 2's complement
 
     def __init__(self, aout, op):
         super().__init__(aout, op)
@@ -497,9 +393,10 @@ class AOut:
             PC = instr.indir_PC if instr and instr.indir_PC else None
 
             instr = self.decode_instr()
-            print(instr.stmt.dump(self.vm))
+            #print(instr.stmt.dump(self.vm))
             self.vm.trace(instr.stmt)
             instr.stmt.exec(self.vm)
+            self.vm.counters['instr executed'] += 1
             self.vm.post_trace()
 
             # If syscall indir is executed, we need to restore PC
