@@ -1271,8 +1271,6 @@ class SyscallStmt(Stmt):
                 args.append(arg_str)
                 arg_names += (arg_str + ' ')
 
-            vm.stats()
-
             if 'ASM_EXEC' in os.environ:
                 vm.logger.info('ASM_EXEC ({}), {} {}'.format(os.environ['ASM_EXEC'], name, arg_names))
             else:

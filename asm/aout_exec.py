@@ -230,8 +230,8 @@ class InstrBranch(Instr):
         else:
             mode = Instr.INDEX
             offset = aout.word & 0o0377
-            if offset & 0o0200:
-                offset = -((offset & 0o0177 ^ 0o0177) + 1)  # sign bit set, make offset negative through 2's complement
+            if offset & 0o0200: # sign bit set, make offset negative through 2's complement
+                offset = -((offset & 0o0177 ^ 0o0177) + 1)  # Can't use util.from_2_compl as this assume byte/word size
             expr = self.new_expr(mode, None, None, offset)
             self.stmt = as_stmt.KeywordStmt(self.vm.get_PC(), self.op, expr)
 
@@ -393,7 +393,6 @@ class AOut:
             PC = instr.indir_PC if instr and instr.indir_PC else None
 
             instr = self.decode_instr()
-            #print(instr.stmt.dump(self.vm))
             self.vm.trace(instr.stmt)
             instr.stmt.exec(self.vm)
             self.vm.counters['instr executed'] += 1

@@ -1,8 +1,3 @@
-To do:
-- Better GUI
-- Implement break
-- Fix stack (should start at max address)
-
 Notes:
 In temporary file "/tmp/atm1*", the filenames that is assembled is coded in ASCII.
 The string starts with marker '05' and ends with ',-1/ff'. file names can maximum be 20 characters.

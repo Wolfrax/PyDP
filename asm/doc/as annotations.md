@@ -36,6 +36,7 @@ instructions to generate the outcome. In the latter case, we are executing from 
    * [Miscellaneous](#misc_instr)
 * [Pseudo operations](#pseudo_op)
    * [.byte](#pseudo_op_byte)
+* [GUI](#GUI)
 * [Appendix](#appendix)
    * [Grammar](#grammar)
 
@@ -508,6 +509,20 @@ example above this will become 244 (-12).
 
 Another example is `.byte 'n, 012`. Here we place the ordinal value for "n" in the first byte, followed by the octal
 integer value "12" (10 decimal).
+
+# GUI <a name="GUI"></a>
+
+A GUI for executing and debugging the assmbler is written in React, so there is a client and a server part.
+The server is implemented by `asm_api_server.py`, while the client implementation can be found in the directory `gui`.
+
+Start the server by `$ python asm_api_server.py`, then start the client (currently from PyCharm configuration
+`npm_dev`), click on the link stated by the client.
+
+## React and Flask
+
+* [https://blog.miguelgrinberg.com/post/how-to-create-a-react--flask-project]()
+* [https://blog.miguelgrinberg.com/post/how-to-deploy-a-react--flask-project]()
+* [https://create-react-app.dev/docs/documentation-intro]()
 
 # Appendix <a name="appendix"></a>
 

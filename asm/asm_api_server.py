@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify
 import asm
-import glob
 import threading
 import queue
 import logging
 from logging.handlers import QueueHandler
 from flask_sock import Sock
-
+import os
 
 app = Flask(__name__)
 
@@ -21,11 +20,15 @@ class Session:
         self.goThread = None
         self.goThreadBreak = False
         self.cmd = None
-        self.trace = True
+        self.trace = False
         self.trace_fn = 'trace.txt'
         self.verbose = False
 
         self.logger = logging.getLogger('pyPDP')
+
+        # Set environment variables, this will avoid doing os.execv or sys.exit.
+        os.environ['ASM_EXEC'] = '1'
+        os.environ['ASM_EXIT'] = '1'
 
         self.log_queue = queue.Queue(-1)  # Infinite size
         fmt = logging.Formatter('%(asctime)s - %(message)s')
@@ -38,38 +41,54 @@ class Session:
         self.logger.info('New session')
 
 
-session = Session()
+session = None
 
 
 @app.route('/asm/vm/PSW')
 def PSW():
-    return jsonify(session.vm.PSW.get())
+    if session.vm:
+        return jsonify(session.vm.PSW.get())
+    return jsonify([])
 
 
 @app.route('/asm/vm/registers')
 def registers():
-    return jsonify(session.vm.register)
+    if session.vm:
+        return jsonify(session.vm.register)
+    return jsonify([])
 
 
 @app.route('/asm/vm/stack')
 def stack():
-    return jsonify(list(zip(session.vm.stack_read(), session.vm.stack_read_addr())))
+    if session.vm:
+        return jsonify(list(zip(session.vm.stack_read_addr(), session.vm.stack_read())))
+    return jsonify([])
 
 
-@app.route('/asm/vm/symbols')
-def symbols():
-    lbls = {}
-    for key, addr in session.vm.named_labels.table.items():
-        val = session.vm.mem.read(addr, 2)
-        lbls[key] = [str(addr).zfill(4), hex(val)]
-    syms = {'vars': dict(session.vm.variables.table), 'lbls': lbls}
-    return jsonify(syms)
+@app.route('/asm/vm/variables')
+def variables():
+    vars = []
+    if session.vm:
+        for k, v in session.vm.variables.table.items():
+            vars.append([k, v])
+    return jsonify(vars)
+
+@app.route('/asm/vm/labels')
+def labels():
+    lbls = []
+    if session.vm:
+        for key, addr in session.vm.named_labels.table.items():
+            val = session.vm.mem.read(addr, 2)
+            lbls.append([key, str(addr).zfill(4), hex(val)])
+    return jsonify(lbls)
 
 
 @app.route('/asm/vm/sysstatus')
 def sysstatus():
-    str = session.vm.get_sys_status()
-    return str
+    if session.vm:
+        str = session.vm.get_gui_status()
+        return str
+    return ""
 
 
 @app.route('/asm/vm/src/trace/<trace>', methods=['GET', 'POST'])
@@ -88,9 +107,22 @@ def vm():
     # Note, session.cmd needs to be setup as sys.argv would be. For example as: ['as', 'as', 'as1?.s']
     # When initializing VM below, it will read session.cmd as cmd_line and parse accordingly. It will also set
     # working directory according to configuration settings.
-    session.cmd = [request.args.get('cmd'), request.args.get('cmd'), request.args.get('file')]
+    global session
+    session = Session()
+    cmd = request.args.get('cmd')
+    file = request.args.get('file')
+    if cmd == "as1":
+        session.cmd = [cmd, cmd, file]
+    else:  # as2
+        # Split file string by space into a list: "/tmp/atm1a /tmp/atm2a /tmp/atm3a" =>
+        #   ["/tmp/atm1a", "tmp/atm2a", "/tmp/atm3a"]
+        # Then concatenate into one list.
+        session.cmd = [cmd, cmd] + file.split(" ")
+
+    print(f"src: {session.cmd}")
+    print(f"cwd: {os.getcwd()}")
     session.vm = asm.VM(session.cmd)
-    return session.vm.get_src()
+    return {'startLine': session.vm.current_lineno(), 'src': session.vm.get_src()}
 
 
 @app.route('/asm/vm/src/line/<int:line>')
@@ -158,9 +190,12 @@ def log_level():
 
 @sock.route('/asm/vm/log')
 def log(sock):
+    print("Opening socket log")
     while True:
         log_rec = session.log_queue.get(block=True)
         sock.send(log_rec.getMessage())
+        print(f"Log, have sent {log_rec.getMessage()}")
+    print("Closing socket log")
 
 
 if __name__ == '__main__':

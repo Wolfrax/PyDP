@@ -1,27 +1,33 @@
 # PyDP
 
-This is the PyDP repository. It is under implementation.
+This is the PyDP repository.
 
-It is implemented under Linux and tested only there.
+Currently, it consists of these parts:
 
-The first step is to parse and execute the UNIX v6 assembler, this now looks Ok.
-The Python implementation can parse all assembler files implementing the as-assembler
-used in Unix V6 for PDP 11/40. The outcome is an a.out file, following the a.out file
-format. The main intention is to implement enough to manage the assembler files, 
-it is however possible to implement at least simple test files, run these through 
-the Python implementation and produce an a.out file.
+* An interpreter of the UNIX v6 assembler. 
 
-There is a simple UI connected to the implementation with possibilities to set 
-breakpoints and produce trace files. The implementation is possible to execute from
-command line also. You can do:
+It will parse and execute all source code of the assembler, therefore making it possible to bootstrap UNIX v6 assembler
+code. It will produce a bit-exact binary file in aout format if successful.
+As the assembler is 2-pass, there are 2 parts: `as1?.s` and `as2?.s` source files. 
 
-    python asm_gui.py as "as1?.s"
+There is a command line interface, for example do `python asm.py as as1?.s`
 
-Note that the Unix V6 assembler have hardcoded the second pass to call for "/lib/as2"
-with parameter. To manage this, the file `as2.bash` should be soft-linked to the call.
+* A simple GUI
 
-Documentation will be improved.
+It is possible to debug the assembler; setting breakpoints, execute, single step, inspect stack, registers and the
+processor status word etc.
 
-The next step is to implement an interpreter for a.out. This is not available yet.
-When done with this step the a.out-interpreter should be able to assemble any Unix V6 
-assembler source file.
+To start, use the bash-script in the gui directory: `$ sh start.bash`.
+It is implemented using react and Vite, to rebuild changed components do `$ npm run build`
+
+* An interpreter of files in aout format
+
+This builds on the assembler interpreter implement and will execute a binary file in valid aout format.
+Do for example, `$ python aout_exec.py as as2?.s`, which will execute the binary file `as` with `as2?.s` as input.
+
+* A dump utility
+
+Will dump information about a binary file in aout format.
+For example, `aout_dump.py --file ./src/a.out`
+
+For more details, refer to `as_annotations.md` in the asm/doc directory.

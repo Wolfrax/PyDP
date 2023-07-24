@@ -1,0 +1,99 @@
+#root {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.MuiInputBase-input  {
+  background: beige;
+}
+
+.MuiTextField-root {
+  background: beige;
+}
+
+.idx {
+    display: inline-block;
+    background-color: rgb(255, 240, 200);
+    border: 0;
+}
+
+.idxMarked {
+    background-color: dodgerblue;
+}
+
+.button {
+    width: 10%;
+    line-height: 0;
+    border-radius: 0;
+}
+
+.pre {
+    text-align: left;
+    background-color: rgb(255, 247, 229);
+    border: 1px solid black;
+    overflow-y: scroll;
+    overflow-x: auto;
+    height: 500px;
+    width: auto;
+    margin-left: 0;
+    font-family: monospace;
+    line-height: 0;
+}
+
+.src {
+    display: inline-block;
+    background-color: rgb(255, 247, 229);
+}
+
+.srcMarked {
+    background-color: darkgray;
+}
+
+.log {
+    text-align: left;
+    overflow-y: scroll;
+    overflow-x: auto;
+    margin-left: 0;
+    height: 500px;
+    border: 1px solid black;
+    width: auto;
+    font-family: monospace;
+}

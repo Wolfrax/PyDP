@@ -151,7 +151,7 @@ class PSW:
 class VM:
     def __init__(self, cmd_line, exec=False, config_file="config.yml"):
         self.logger = logging.getLogger('pyPDP')
-        logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
+        logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
         self.logger.info('Start')
 
         # --> Pure VM initialization
@@ -211,8 +211,26 @@ class VM:
         else:
             # This is when we assemble from source
             if cmd_line[1] == 'as2':
-                command = cmd_line[1] + ' ' + ''.join(elem + ' ' for elem in cmd_line[2:])
-            else:
+                #
+                # sys exec /lib/as2 /lib/as2 /tmp/atm1e /tmp/atm2e /tmp/atm3f
+                #
+                # arguments from cmd_line[2:] can be of the following forms:
+                # 1. Not ending with single wild card, for example ["/tmp/atm1a", "/tmp/atm2a", "/tmp/atm3a"]
+                # 2. Ending with single wild card: ["/tmp/atm1?", "/tmp/atm2?", "/tmp/atm3?"]
+                # In case 2 we take all files matching the wild card, create a list and select the last file
+                args = [cmd_line[1]]
+                for elem in cmd_line[2:]:
+                    if elem[-1] == '?':
+                        files = glob.glob(elem)
+                        if files:
+                            file = sorted(files)[-1]  # Last file matching the wild card
+                        else: # files mathing elem not found, issue warning but continue.
+                            self.logger.warning(f"WARNING {elem} not found! Will continue...")
+                            file =''
+                    else:
+                        file = elem  # No wild card, use as is
+                    args.append(file)
+            else:  # as1
                 if cmd_line[2] == '-':
                     glob_dir = cmd_line[2] + ' '
                     files = cmd_line[3]
@@ -221,13 +239,11 @@ class VM:
                     files = cmd_line[2]
 
                 fnList = sorted(glob.glob(files))
-                command = cmd_line[1] + ' ' + glob_dir + ''.join(elem + ' ' for elem in fnList)
-            args = command.split(' ')
+                args = [cmd_line[1]] + fnList
 
             self.logger.info('Start {}'.format(args))
 
             asm_files = 'as1?.s' if args[0] == 'as' else 'as2?.s'
-            args = args[:-1] + ['\x00']
 
             asm_list = []
             for filename in os.listdir("."):
@@ -263,7 +279,7 @@ class VM:
             stack_mempos = len(self.mem) - 1024  # Program stack i maximum 1k of memory
 
             # Push all arguments on internal stack in reverse order
-            for arg in reversed(args[:-1]):
+            for arg in reversed(args):
                 arg += '\x00'  # all arguments on stack need to be terminated with 0
                 nr = 0
                 for ch in arg:
@@ -271,7 +287,7 @@ class VM:
                 self.stack_push(stack_mempos)
                 stack_mempos += nr
 
-            self.stack_push(len(args) - 1)
+            self.stack_push(len(args))
 
             atexit.register(self.patch_aout)
             atexit.register(self.stats)
@@ -445,7 +461,7 @@ class VM:
             result += str(k) + ": " + str(v) + " "
         return result
 
-    def get_sys_status(self):
+    def get_gui_status(self):
         result = ""
         for k, v in self.sys_sig_status.items():
             result += v + k + "\n"
