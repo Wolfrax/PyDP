@@ -571,7 +571,7 @@ class AOut:
         For instructions, the relocation information is shown within <>-string, using the same abbreviations as for
         symbols and a prefix. Prefixes are 'r_' for relative pc and 'a_' for actual symbol. See a.out manual page.
         
-        Dump tries to do a go job of dumping instructions and looking up symbolic names of operands.
+        Dump tries to do a good job of dumping instructions and looking up symbolic names of operands.
         Due to the architecture of PDP instruction set, it is impossible to tell is a word is instruction or data, so
         the output might be in error due to this.
         """

@@ -24,6 +24,9 @@ class Memory:
         assert len(data) <= self.size, "Initialization of memory out of bound"
         self.memory[0:len(data)] = data
 
+    def init_slize(self, start_ind, size, data):
+        self.memory[start_ind: start_ind + size] = data
+
     def write(self, pos, value, byte=False):
         assert pos + 1 < len(self.memory), "Memory, write outside memory {}".format(pos)
         assert isinstance(value, int), "Memory, value is not int: {}".format(value)
@@ -231,15 +234,15 @@ class VM:
                         file = elem  # No wild card, use as is
                     args.append(file)
             else:  # as1
+                args = [cmd_line[1]]
                 if cmd_line[2] == '-':
-                    glob_dir = cmd_line[2] + ' '
+                    args += cmd_line[2] + ' '
                     files = cmd_line[3]
                 else:
-                    glob_dir = ''
                     files = cmd_line[2]
 
                 fnList = sorted(glob.glob(files))
-                args = [cmd_line[1]] + fnList
+                args += fnList
 
             self.logger.info('Start {}'.format(args))
 
@@ -295,6 +298,9 @@ class VM:
 
     def memory(self, data):
         self.mem.init(data)
+
+    def memory_slize(self, start_ind, size, data):
+        self.mem.init_slize(start_ind, size, data)
 
     def log_level(self, verbose):
         logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)

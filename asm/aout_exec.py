@@ -31,21 +31,21 @@ class Head:
 class SymTable:
     types = {0: 'u', 1: 'a', 2: 't', 3: 'd', 4: 'b', 31: 'F', 32: 'U', 33: 'A', 34: 'T', 35: 'D', 36: 'B'}
 
-    def __init__(self, vm, start_addr, end_addr):
+    def __init__(self, bytes, start_addr, end_addr):
         self.table = {}
 
         ind = start_addr
         while ind < end_addr:
             sym = ''
             for i in range(8):
-                ch = vm.mem.read(ind + i, 1)
+                ch = bytes[ind + i]
                 if ch != 0:
                     sym += chr(ch)
 
-            type = vm.mem.read(ind + 8)
+            type = ret_val = (bytes[ind + 9] << 8) | bytes[ind + 8]
             type_str = self.types[type] if type in self.types else str(type)
 
-            val = vm.mem.read(ind + 10)
+            val = (bytes[ind + 11] << 8) | bytes[ind + 10]
 
             self.table[val] = {'name': sym, 'type': type, 'type_str': type_str, 'value': val}
             ind += 12
@@ -365,23 +365,36 @@ class InstrMisc(Instr):
 
 
 class AOut:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
         self.word = None
         try:
-            with open(self.name, 'rb') as f:
+            with open(sys.argv[1], 'rb') as f:
                 bytes = f.read()
         except OSError as e:
-            print(f"{self.name} not found in {os.getcwd()}")
+            print(f"{sys.argv[1]} not found in {os.getcwd()}")
             sys.exit(1)
 
         self.head = Head(bytes[0:16])
 
         self.vm = asm.VM(cmd_line=sys.argv, exec=True)
-        self.vm.memory(bytes[self.head.size:])
 
-        sym_start = (1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data'))
-        self.sym_table = SymTable(self.vm, sym_start, sym_start + self.head.get('sym'))
+        # Note that we only load text-segment and data-segment into memory. bss-segment is reserved for
+        # uninitialized data, but the entire segment is zero under UNIX. The programs will make use of this and
+        # assume variables in bss-segment to have 0 as starting values.
+        # bss-segment is not part of the binary file (to save space), only its size is indicated in the header.
+        # As we start VM, it's memory space is initialized to 64k of zeros, then we copy the values for txt-segment and
+        # data segment into its memory.
+        self.vm.memory(bytes[self.head.size:(self.head.get('txt') + self.head.get('data'))])
+
+        # Note that 'reloc' is a flag indicating if reloc information is part of the binary file or not.
+        # if set to 1, reloc data is NOT part of the file, if set to 0 reloc information is part of the file
+        # Symbol table is thus calculated using the reloc flag.
+        # Also, as the bytes-array includes the header (16 bytes), we need to offset with this when reading the
+        # symbol table.
+        sym_start = ((1 if self.head.get('reloc') else 2) * (self.head.get('txt') + self.head.get('data')) +
+                     self.head.size)
+        sym_end = sym_start + self.head.get('sym')
+        self.sym_table = SymTable(bytes, sym_start, sym_end)
 
         for sym in self.sym_table:
             symbol = self.sym_table.get(sym)
@@ -425,13 +438,12 @@ class AOut:
 
     def exit(self):
         fn = "aout_trace.txt"
-        print(f"Dumping trace to {fn}")
         self.vm.dump_trace(fn)
 
 
 if __name__ == '__main__':
     instrLUT = ic.InstrLUT()
 
-    aout = AOut("./src/a.out")
+    aout = AOut()
     atexit.register(aout.exit)
     aout.exec()
