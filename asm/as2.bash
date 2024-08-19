@@ -3,7 +3,7 @@
 # This script uses the environment variable ASM_PASS2 for logic
 # - If not set, just echo what to do
 # - If set and equal to "exec",then invoke aout_exec.py
-# - If set and not equal to "exec".invole asm.py
+# - If set and not equal to "exec".involve asm.py
 #
 
 BASE_PATH=/home/mm/dev/PyDP

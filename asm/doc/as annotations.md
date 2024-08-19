@@ -100,6 +100,8 @@ If not set, the first pass will terminate. If set, the first pass will trigger e
 as2 can be manually executed by issuing `$ python asm.py as2 /tmp/atm1i /tmp/atm2i /tmp/atm3h` (or equivalent names of
 tmp-files).
 
+=== Below is OBSOLETE ===
+
 Running with tkinter GUI is done as so: `$ python asm_gui.py as as1?.s`.
 
 Running with web-GUI is a two-step approach. First, the API-server should be started.
@@ -118,6 +120,8 @@ which part of the UNIX v6 assembler we will use. Assuming it is the first pass, 
 be visible.
 
 Note that above is also set as configurations in PyCharm.
+
+=== Above is OBSOLETE ===
 
 # System calls <a name="syscalls"></a>
 What follows is some notes on UNIX v6 system calls.
