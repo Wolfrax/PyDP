@@ -1,0 +1,4 @@
+Flask==3.0.3
+flask_sock==0.7.0
+PyYAML==6.0.1
+sly==0.5
