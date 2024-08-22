@@ -29,6 +29,7 @@ class Session:
         # Set environment variables, this will avoid doing os.execv or sys.exit.
         os.environ['ASM_EXEC'] = '1'
         os.environ['ASM_EXIT'] = '1'
+        os.environ['ASM_KEEP_TMP'] = '1'
 
         self.log_queue = queue.Queue(-1)  # Infinite size
         fmt = logging.Formatter('%(asctime)s - %(message)s')

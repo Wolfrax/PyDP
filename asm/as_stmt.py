@@ -1158,8 +1158,12 @@ class SyscallStmt(Stmt):
                 ch = vm.mem.read(fn_addr, 1)
 
             try:
-                os.unlink(fn)
-                vm.logger.debug('sys unlink {}'.format(fn))
+                if 'ASM_KEEP_TMP' in os.environ:
+                    vm.logger.info('ASM_KEEP_TMP ({}), no sys unlink {}'.format(os.environ['ASM_KEEP_TMP'], fn))
+                else:
+                    os.unlink(fn)
+                    vm.logger.debug('sys unlink {}'.format(fn))
+
                 PSW['C'] = 0
 
             except FileNotFoundError:
@@ -1282,12 +1286,11 @@ class SyscallStmt(Stmt):
             PSW['C'] = 0
 
         elif self.expr == 'exit':
+            vm.exit = True
             if 'ASM_EXIT' in os.environ:
                 vm.logger.info('ASM_EXIT ({}), sys exit {}'.format(os.environ['ASM_EXIT'], vm.register['r0']))
-                vm.exit = True
             else:
                 vm.logger.info('sys exit {}'.format(vm.register['r0']))
-                vm.exit = True
                 sys.exit(vm.register['r0'] & 0xFF)
 
         elif self.expr == 'break':
