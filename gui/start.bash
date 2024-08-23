@@ -10,10 +10,12 @@
 
 kill_api_server()
 {
+    printf "\rsignal caught caught, kill %d  " $serverPID
     kill $serverPID
 }
 
+trap 'kill_api_server' EXIT HUP INT TERM
+
 ../venv/bin/python ../asm/asm_api_server.py > /dev/null 2>&1 &
 serverPID=$!  # Catch the PID for the background process, then trap SIGINT (ctrl-C) and call kill_api_server
-trap 'kill_api_server' INT
 npm run dev
