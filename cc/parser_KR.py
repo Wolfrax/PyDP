@@ -217,7 +217,7 @@ class CCParser(Parser):
 
     # --- Start pre-KR initialization productions ---
 
-    @_('CONSTANT',
+    @_('CONSTANT', 'expression', # <==
        '"{" pre_kr_constant_expression_list "}"',
        )
     def pre_kr_initializer(self, p):
@@ -248,7 +248,6 @@ class CCParser(Parser):
     def type_specifier(self, p):
         log.debug(f'{self.production}\n  {self.symstack}')
 
-
     @_('struct_or_union ID "{" struct_declaration_list "}"',
        'struct_or_union "{" struct_declaration_list "}"',
        'struct_or_union ID'
@@ -270,7 +269,6 @@ class CCParser(Parser):
     def struct_declaration(self, p):
         log.debug(f'{self.production}\n  {self.symstack}')
 
-
     @_('type_specifier specifier_qualifier_list',
        'type_specifier',
        'type_qualifier specifier_qualifier_list',
@@ -278,7 +276,6 @@ class CCParser(Parser):
        )
     def specifier_qualifier_list(self, p):
         log.debug(f'{self.production}\n  {self.symstack}')
-
 
     @_('struct_declarator',
        'struct_declarator_list "," struct_declarator')
@@ -342,7 +339,6 @@ class CCParser(Parser):
        'type_qualifier_list type_qualifier')
     def type_qualifier_list(self, p):
         log.debug(f'{self.production}\n  {self.symstack}')
-
 
     @_('parameter_list',
        'parameter_list "," ELLIPSIS')
@@ -502,7 +498,7 @@ class CCParser(Parser):
     def error(self, p):
         print(f'\n*** ERROR ***\n')
         if p:
-            print(f'Syntax error at [{p.lineno}:{p.index}] @token {p.type}')
+            print(f'Syntax error at [{p.lineno}:{p.index}] @token {p.type} = {p.value}')
             print(f'\tProduction: {self.production}')
             print(f'\tsymstack is:')
             for sym in self.symstack:
@@ -514,8 +510,8 @@ class CCParser(Parser):
 
 if __name__ == '__main__':
 #    with open('./src/c0_tot.c', 'r') as f:
-    with open('./src/c00.c', 'r') as f:
-#    with open('cc_test.c', 'r') as f:
+#    with open('./src/c00.c', 'r') as f:
+    with open('cc_test.c', 'r') as f:
         prg = f.read()
 
     logging.basicConfig(filename='parser.log', filemode='w', level=logging.DEBUG, format='%(message)s')

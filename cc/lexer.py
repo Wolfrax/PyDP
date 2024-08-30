@@ -56,9 +56,16 @@ class CLexer(Lexer):
 
     # 1.0, -1.0, +1., -.1, -1.0e23, +1e-23, -1e-23
     # https://stackoverflow.com/questions/13252101/regular-expressions-match-floating-point-number-but-not-integer
-    @_(r'[-|+]?0[0-7]+',  # Octal
-       r'[-|+]?\d+',  # Decimal
-       r'[+-]?(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
+    @_(# r'[-|+]?0[0-7]+',  # Octal
+       # r'[-|+]?\d+',  # Decimal
+       # r'[+-]?(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
+       # Note, we should not scan signs in front of digits, if we do expressions such as "a-1" will be scanned
+       # as ID CONSTANT (which is grammatically wrong), but should be scanned as ID "-" CONSTANT
+       # A declaration with intializations, such as "int peeksym -1;"  should be scanned as
+       # INT ID "-" CONSTANT (value = 1), not as INT ID CONSTANT (value = -1)
+       r'0[0-7]+',  # Octal
+       r'\d+',  # Decimal
+       r'(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
        r'\'\\.\'', # ESCAPECHR
        r'\'.?\'',  # SINGLECHR
        r'\'\\[0-7]{1,3}\''  # ESCAPEOCT
@@ -70,9 +77,10 @@ class CLexer(Lexer):
                 if len(t.value) == 1:  # Number is 0 only
                     t.value = 0
                 else:
-                    t.value =int(t.value[1:], 8)
+                    t.value = int(t.value[1:], 8)
             else:
                 t.value = int(t.value)
+        print(f"CONSTANT = {t.value} @lineno: {t.lineno}")
         return t
 
     STRING_LITERAL = r'"[^"]*"'

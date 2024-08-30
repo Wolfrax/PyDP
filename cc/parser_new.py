@@ -179,7 +179,7 @@ class CCParser(Parser):
 #       )
 #    def initializer(self, p): pass
 
-    @_('CONSTANT',
+    @_('CONSTANT', 'expression',
        '"{" constant_expression_list "}"',
        )
     def initializer(self, p): pass
