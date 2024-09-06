@@ -36,7 +36,7 @@ class CCParser(Parser):
        )
     def type_specifier(self, p): self.dump()
 
-    @_('struct_or_union ID "{" struct_declaration_list "}"')
+    @_('struct_or_union ID ID "{" struct_declaration_list "}"')
     def struct_or_union_specifier(self, p): self.dump()
 
     @_('STRUCT', 'UNION')
@@ -60,7 +60,7 @@ class CCParser(Parser):
     @_('direct_declarator')
     def declarator(self, p): self.dump()
 
-    @_('ID',
+    @_('ID', 'CONSTANT',
        'direct_declarator "[" constant_expression "]"',
        'direct_declarator "[" "]"',
        )
