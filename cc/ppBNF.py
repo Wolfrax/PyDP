@@ -4,60 +4,68 @@
 # Mats Melander 2023-07-31
 __author__ = 'mm'
 
+import sys
+import re
+import os.path
 
 if __name__ == '__main__':
-    with open('test_parser.py') as f:
+    if len(sys.argv) < 2:
+        print("Need a file name")
+        sys.exit()
+    else:
+        infile = sys.argv[1]
+        if os.path.isfile(infile):
+            outfile = re.sub('.py', '.bnf', infile)  # Assume extension always as py
+        else:
+            print(f"File {infile} does not exist")
+            sys.exit()
+
+    with open(infile) as f:
+        print(f'Opening {infile}\n')
         text = f.read().rstrip()
 
     rules = []
-    at_flag = False
-    def_flag = False
+    lhs_start = -1
 
-    # https://stackoverflow.com/questions/31228467/is-in-the-python-something-like-method-findnext-in-string
-    pos = -1
+    # A production rule in sly follow this scheme:
+    #   @_(A, B) def prod(...) which translate to BNF
+    #   prod ::= A | B
+    # Below: lhs = left hand side, rhs = right hand side
+
     while True:
-        pos = text.find('@_(', pos + 1)
-        if pos == -1:
-            break
-        lhs_ind = text.find(')', pos + 1)
-        lhs = (text[pos+3:lhs_ind].
-               replace(')', '').
+        # find the string @_(, the start of a production rule in sly
+        lhs_start = text.find('@_(', lhs_start + 1)
+        if lhs_start == -1:
+            break  # Not found, end the loop
+        else:
+            lhs_start += 3  # Adjust index to the first char after @_(, the start of the first left hand side rule
+
+        # find end of lhs, exclude the string ")" (negative lookahead in regex below)
+        lhs_end = re.search(r'(?!\")\)(?!\")', text[lhs_start:]).span()[0] + lhs_start
+        lhs = (text[lhs_start:lhs_end].
                replace('\n', '').
                replace('  ', '').
                replace('\'', ''))
-        print(lhs)
+        lhs = re.sub(r',(?!\")', ' |', lhs)  # replace ',' with '|' except when ","
+        lhs = re.sub(r'#.*', '', lhs)  # remove any line comments
+        rstrip_lhs = re.search(r'\s*\|\s*$', lhs)  # remove trailing |, if any
+        if rstrip_lhs:
+            lhs = lhs[:rstrip_lhs.span()[0]]
 
+        rhs_start = text.find('def', lhs_end + 1)
+        if rhs_start == -1:
+            print(f'def not found from {rhs_start}, should not be')
+            break
+        else:
+            rhs_start += 3
+        rhs_end = text.find('(', rhs_start)
 
-    for ch in text:
-        if ch.isspace():
-            continue
+        rules.append({'rhs': text[rhs_start+1:rhs_end], 'lhs': lhs })
 
-        if ch == '@' and not at_flag:
-            at_flag = True
-            prod = {'rhs': '', 'lhs': ''}  # new production
-            rhs = ''  # right hand side of production
-            lhs = ''  # left hand side of production
-            continue  # skip @-char
-        if at_flag:
-            if ch == '(' or ch == '_':
-                continue  # skip ( and _
-            if ch == ')':
-                at_flag = False  # done with rhs of production
-                prod['rhs'] = rhs
-                def_flag = True
-                continue
-            else:
-                rhs += ch
-        if def_flag:
-            if ch == '(':
-                def_flag = False  # done with lhs of production
-                prod['lhs'] = lhs
-                rules.append(prod)
-                continue
-            if  ch == 'd' or ch == 'e' or ch == 'f':
-                continue  # skip def
-            lhs += ch
+    with open(outfile, 'w') as f:
+        for rule in rules:
+            f.write(f'{rule["rhs"]} ::= {rule["lhs"]}\n')
+            print(f'{rule["rhs"]} ::= {rule["lhs"]}')
 
-#    for r in rules:
-#        print(r)
+        print(f'\nWritten to {outfile}')
 
