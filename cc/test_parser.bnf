@@ -1,0 +1,71 @@
+translation_unit ::= declaration
+declaration ::= type_specifier
+type_specifier ::= VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | struct_or_union_specifier 
+struct_or_union_specifier ::= struct_or_union ID ID "{" struct_declaration_list "}"
+struct_or_union ::= STRUCT | UNION
+struct_declaration_list ::= struct_declaration | struct_declaration_list struct_declaration 
+struct_declarator_list ::= struct_declarator | struct_declarator_list "," struct_declarator
+struct_declaration ::= struct_declarator_list ";"
+struct_declarator ::= declarator
+declarator ::= direct_declarator
+direct_declarator ::= ID | CONSTANT | direct_declarator "[" constant_expression "]" | direct_declarator "[" "]"
+constant_expression ::= ID | CONSTANT
+
+struct tname funcblk { NAME, 0 };
+
+Lexer output
+    Token(type='STRUCT', value='struct')
+    Token(type='ID', value='tname')
+    Token(type='ID', value='funcblk')
+    Token(type='{', value='{')
+    Token(type='ID', value='NAME')
+    Token(type=',', value=',')
+    Token(type='CONSTANT', value=0)
+    Token(type='}', value='}')
+    Token(type=';', value=';')
+
+=> STRUCT ID ID "{" ID "," CONSTANT "}" ";"
+
+Parser output (production \n symstack)
+struct_or_union -> STRUCT  (action step 2)
+  [$end, Token(type='STRUCT', value='struct')]
+direct_declarator -> ID (action step 7)
+  [$end, struct_or_union, Token(type='ID', value='tname'), Token(type='ID', value='funcblk'), Token(type='{', value='{'), Token(type='ID', value='NAME')]
+declarator -> direct_declarator (action step 8)
+  [$end, struct_or_union, Token(type='ID', value='tname'), Token(type='ID', value='funcblk'), Token(type='{', value='{'), direct_declarator]
+struct_declarator -> declarator (action step 9)
+  [$end, struct_or_union, Token(type='ID', value='tname'), Token(type='ID', value='funcblk'), Token(type='{', value='{'), declarator]
+struct_declarator_list -> struct_declarator (action step 12)
+  [$end, struct_or_union, Token(type='ID', value='tname'), Token(type='ID', value='funcblk'), Token(type='{', value='{'), struct_declarator]
+
+*** ERROR ***
+
+Syntax error at [1:31] @token } = }
+	Production: struct_declarator_list -> struct_declarator
+	symstack is:
+	$end
+	struct_or_union
+	Token(type='ID', value='tname', lineno=1, index=7, end=12)
+	Token(type='ID', value='funcblk', lineno=1, index=13, end=20)
+	Token(type='{', value='{', lineno=1, index=21, end=22)
+	struct_declarator_list
+	Token(type=',', value=',', lineno=1, index=27, end=28)
+	Token(type='CONSTANT', value=0, lineno=1, index=29, end=30)
+None
+
+Step Symbol Stack                                           Input Tokens                                 Action
+---- ---------------------                                  -----------------------------------------    -----------------------------------------
+1                                                           STRUCT ID ID "{" ID "," CONSTANT "}" ";"$    Shift STRUCT
+2    STRUCT                                                 ID ID "{" ID "," CONSTANT "}" ";"$           Reduce struct_or_union ::= STRUCT | UNION
+3    struct_or_union                                        ID ID "{" ID "," CONSTANT "}" ";"$           Shift ID
+4    struct_or_union ID                                     ID "{" ID "," CONSTANT "}" ";"$              Shift ID
+5    struct_or_union ID ID                                  "{" ID "," CONSTANT "}" ";"$                 Shift "{"
+6    struct_or_union ID ID "{"                              ID "," CONSTANT "}" ";"$                     Shift ID
+7    struct_or_union ID ID "{" ID                           "," CONSTANT "}" ";"$                        Reduce direct_declarator ::= ID
+8    struct_or_union ID ID "{" direct_declarator            "," CONSTANT "}" ";"$                        Reduce declarator ::= direct_declarator
+9    struct_or_union ID ID "{" declarator                   "," CONSTANT "}" ";"$                        Reduce struct_declarator ::= declarator
+10   struct_or_union ID ID "{" declarator                   "," CONSTANT "}" ";"$                        Shift ","
+11   struct_or_union ID ID "{" struct_declarator ","        CONSTANT "}" ";"$                            Reduce struct_declarator_list ::= struct_declarator_list "," struct_declarator
+12   struct_or_union ID ID "{" struct_declarator_list       CONSTANT "}" ";"$                            Reduce struct_declarator_list ::= struct_declarator
+13   struct_or_union ID ID "{" struct_declarator            CONSTANT "}" ";"$                            Shift CONSTANT
+14   struct_or_union ID ID "{" struct_declarator CONSTANT   "}" ";"$

@@ -85,5 +85,7 @@ if __name__ == '__main__':
 
     lex = lexer.CLexer()
     parser = CCParser()
+    print(parser._grammar)
+    print(parser._lrtable)
     result = parser.parse(lex.tokenize(prg))
     print(result)
