@@ -53,19 +53,77 @@ Syntax error at [1:31] @token } = }
 	Token(type='CONSTANT', value=0, lineno=1, index=29, end=30)
 None
 
-Step Symbol Stack                                           Input Tokens                                 Action
----- ---------------------                                  -----------------------------------------    -----------------------------------------
-1                                                           STRUCT ID ID "{" ID "," CONSTANT "}" ";"$    Shift STRUCT
-2    STRUCT                                                 ID ID "{" ID "," CONSTANT "}" ";"$           Reduce struct_or_union ::= STRUCT | UNION
-3    struct_or_union                                        ID ID "{" ID "," CONSTANT "}" ";"$           Shift ID
-4    struct_or_union ID                                     ID "{" ID "," CONSTANT "}" ";"$              Shift ID
-5    struct_or_union ID ID                                  "{" ID "," CONSTANT "}" ";"$                 Shift "{"
-6    struct_or_union ID ID "{"                              ID "," CONSTANT "}" ";"$                     Shift ID
-7    struct_or_union ID ID "{" ID                           "," CONSTANT "}" ";"$                        Reduce direct_declarator ::= ID
-8    struct_or_union ID ID "{" direct_declarator            "," CONSTANT "}" ";"$                        Reduce declarator ::= direct_declarator
-9    struct_or_union ID ID "{" declarator                   "," CONSTANT "}" ";"$                        Reduce struct_declarator ::= declarator
-10   struct_or_union ID ID "{" declarator                   "," CONSTANT "}" ";"$                        Shift ","
-11   struct_or_union ID ID "{" struct_declarator ","        CONSTANT "}" ";"$                            Reduce struct_declarator_list ::= struct_declarator_list "," struct_declarator
-12   struct_or_union ID ID "{" struct_declarator_list       CONSTANT "}" ";"$                            Reduce struct_declarator_list ::= struct_declarator
-13   struct_or_union ID ID "{" struct_declarator            CONSTANT "}" ";"$                            Shift CONSTANT
-14   struct_or_union ID ID "{" struct_declarator CONSTANT   "}" ";"$
+Lexer tokens
+. STRUCT ID ID "{" ID "," CONSTANT "}" ";"
+
+State 0
+- Shift (STRUCT) and go to state 16
+=> STRUCT . ID ID "{" ID "," CONSTANT "}" ";"
+
+State 16
+- Reduce using rule 15 (struct_or_union -> STRUCT .)
+=> struct_or_union . ID ID "{" ID "," CONSTANT "}" ";"
+- Next state 14, match: struct_or_union . ID
+
+State 14
+- Shift (ID) and go to state 17
+=> struct_or_union ID . ID "{" ID "," CONSTANT "}" ";"
+
+State 17
+- shift (ID) and go to state 18
+=> struct_or_union ID ID . "{" ID "," CONSTANT "}" ";"
+
+State 18
+- shift ("{") and go to state 19
+=> struct_or_union ID ID "{" . ID "," CONSTANT "}" ";"
+
+State 19
+- shift (ID) and go to state 20
+=> struct_or_union ID ID "{" ID . "," CONSTANT "}" ";"
+
+State 20
+- reduce using rule 26 (direct_declarator -> ID .)
+=> struct_or_union ID ID "{" direct_declarator . "," CONSTANT "}" ";
+- Next state 26, match rule 22: declarator -> direct_declarator .
+
+State 26
+- reduce using rule 22 (declarator -> direct_declarator .)
+=> struct_or_union ID ID "{" declarator . "," CONSTANT "}" ";
+- Next state 25, match rule 21: struct_declarator -> declarator .
+
+State 25
+- reduce using rule 21 (struct_declarator -> declarator .)
+=> struct_or_union ID ID "{" struct_declarator . "," CONSTANT "}" ";
+- Next state 24, match rule 19: struct_declarator_list -> struct_declarator .
+
+State 24
+- reduce using rule 19 (struct_declarator_list -> struct_declarator .)
+=> struct_or_union ID ID "{" struct_declarator_list . "," CONSTANT "}" ";
+- Next state 23, match rule 18: struct_declarator_list -> struct_declarator_list . , struct_declarator
+
+State 23
+- shift (",") and go to state 31
+=> struct_or_union ID ID "{" struct_declarator_list "," . CONSTANT "}" ";
+
+State 31
+- shift (CONSTANT) and go to state 27
+=> struct_or_union ID ID "{" struct_declarator_list "," CONSTANT . "}" ";
+
+State 27
+- ERROR, next token is not "[", ";", "," but "}"
+
+Step Symbol Stack                                                   Input Tokens                                 Action
+---- ---------------------                                          -----------------------------------------    -----------------------------------------
+1                                                                   STRUCT ID ID "{" ID "," CONSTANT "}" ";"$    Shift STRUCT
+2    STRUCT                                                         ID ID "{" ID "," CONSTANT "}" ";"$           Reduce struct_or_union ::= STRUCT | UNION
+3    struct_or_union                                                ID ID "{" ID "," CONSTANT "}" ";"$           Shift ID
+4    struct_or_union ID                                             ID "{" ID "," CONSTANT "}" ";"$              Shift ID
+5    struct_or_union ID ID                                          "{" ID "," CONSTANT "}" ";"$                 Shift "{"
+6    struct_or_union ID ID "{"                                      ID "," CONSTANT "}" ";"$                     Shift ID
+7    struct_or_union ID ID "{" ID                                   "," CONSTANT "}" ";"$                        Reduce direct_declarator ::= ID
+8    struct_or_union ID ID "{" direct_declarator                    "," CONSTANT "}" ";"$                        Reduce declarator ::= direct_declarator
+9    struct_or_union ID ID "{" declarator                           "," CONSTANT "}" ";"$                        Reduce struct_declarator ::= declarator
+10   struct_or_union ID ID "{" struct_declarator                    "," CONSTANT "}" ";"$                        Reduce struct_declarator_list ::= struct_declarator
+11   struct_or_union ID ID "{" struct_declarator_list               "," CONSTANT "}" ";"$                        Shift ","
+12   struct_or_union ID ID "{" struct_declarator_list ","           CONSTANT "}" ";"$                            Shift CONSTANT
+13   struct_or_union ID ID "{" struct_declarator_list "," CONSTANT  "}" ";"$                                     ERROR, unexpected "}", should be "[", ";", ","
