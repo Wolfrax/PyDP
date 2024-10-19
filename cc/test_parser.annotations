@@ -157,15 +157,18 @@ Grammar v2
 struct tname funcblk { NAME, 0 };
     struct tname -> type_specifier -> struct_specifier -> STRUCT ID
     funcblk -> variable -> ID
-    { NAME, 0 } -> initializer -> "{" variable_list "}"
-    variable_list -> ID | variable_list "," ID
+    { NAME, 0 } -> initializer -> "{" initializer_list "}"
+    initializer_list -> expression | initializer_list "," expression
+    expression -> ID | CONSTANT
 
 
-translation_unit ::= type_specifier
+translation_unit ::= type_specifier ";"
 type_specifier ::= VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | struct_specifier
 struct_specifier ::= STRUCT ID variable initializer
 variable ::= ID
-initializer ::=
+initializer ::= "{" initializer_list "}"
+initializer_list ::= expression | initializer_list "," expression
+expression ::= ID | CONSTANT
 
 ID "{" struct_declaration_list "}"
 struct_declaration_list ::= struct_declaration | struct_declaration_list struct_declaration
