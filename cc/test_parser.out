@@ -22,52 +22,52 @@ Rule 18    expression -> ID
 
 Unused terminals:
 
+    WHILE
+    CONST
     ASSIGN_PLUS
-    GE
-    CONTINUE
-    ASSIGN_LEFT
-    IF
-    SHIFT_RIGHT
-    FOR
-    STRING_LITERAL
-    ASSIGN_OR
-    ASSIGN_TIMES
-    REG
-    INCR
-    RETURN
-    POINTER
-    ASSIGN_XOR
-    ELSE
-    ASSIGN_MINUS
-    ASSIGN_AND
-    SHIFT_LEFT
-    BREAK
     EXTERN
-    STATIC
-    LE
-    UNION
-    DECR
-    AND
-    SIZEOF
+    RETURN
+    IF
+    TYPE_NAME
+    ASSIGN_OR
     GOTO
+    DEFAULT
+    SHIFT_LEFT
     TYPEDEF
-    VOLATILE
-    ASSIGN_DIVIDE
-    OR
+    STRING_LITERAL
+    REG
     SWITCH
     ELLIPSIS
-    AUTO
-    ASSIGN_RIGHT
-    CONST
-    DEFAULT
-    EQ
-    ASSIGN_MOD
-    TYPE_NAME
-    NE
-    WHILE
+    ELSE
+    AND
+    OR
     CASE
-    DO
+    EQ
+    POINTER
+    SIZEOF
+    ASSIGN_DIVIDE
+    ASSIGN_MOD
+    UNION
+    ASSIGN_MINUS
+    GE
+    NE
+    ASSIGN_RIGHT
+    ASSIGN_XOR
     ENUM
+    FOR
+    ASSIGN_LEFT
+    BREAK
+    ASSIGN_AND
+    INCR
+    LE
+    AUTO
+    DECR
+    VOLATILE
+    CONTINUE
+    DO
+    ASSIGN_TIMES
+    STATIC
+    SHIFT_RIGHT
 
 Terminals, with rules where they appear:
 
