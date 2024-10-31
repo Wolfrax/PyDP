@@ -374,8 +374,8 @@ class CCParser(Parser):
 
 if __name__ == '__main__':
 #    with open('./src/c0_tot.c', 'r') as f:
-    with open('./src/c00.c', 'r') as f:
-#    with open('cc_test.c', 'r') as f:
+#    with open('./src/c00.c', 'r') as f:
+    with open('cc_test.c', 'r') as f:
         prg = f.read()
 
     lex = lexer.CLexer()

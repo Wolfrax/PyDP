@@ -63,9 +63,11 @@ if __name__ == '__main__':
         rules.append({'rhs': text[rhs_start+1:rhs_end], 'lhs': lhs })
 
     with open(outfile, 'w') as f:
+        i = 1
         for rule in rules:
-            f.write(f'{rule["rhs"]} ::= {rule["lhs"]}\n')
-            print(f'{rule["rhs"]} ::= {rule["lhs"]}')
+            f.write(f'{i}: {rule["rhs"]} ::= {rule["lhs"]}\n\n')
+            print(f'{i} {rule["rhs"]} ::= {rule["lhs"]}\n')
+            i +=1
 
         print(f'\nWritten to {outfile}')
 
