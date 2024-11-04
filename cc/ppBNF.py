@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Mats Melander 2023-07-31
+# Mats Melander 2024-07-31
 __author__ = 'mm'
 
 import sys
@@ -31,6 +31,9 @@ if __name__ == '__main__':
     #   @_(A, B) def prod(...) which translate to BNF
     #   prod ::= A | B
     # Below: lhs = left hand side, rhs = right hand side
+
+    # Remove comments that might include productions
+    text = re.sub('\n+\s*#.*', '', text)
 
     while True:
         # find the string @_(, the start of a production rule in sly

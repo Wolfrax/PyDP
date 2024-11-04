@@ -24,7 +24,6 @@ class CCParser(Parser):
         else:
             print("Syntax error at EOF")
 
-
     @_('declaration')
     def translation_unit(self, p): self.dump()
 

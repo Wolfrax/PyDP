@@ -80,7 +80,7 @@ class CLexer(Lexer):
                     t.value = int(t.value[1:], 8)
             else:
                 t.value = int(t.value)
-        print(f"CONSTANT = {t.value} @lineno: {t.lineno}")
+        #print(f"CONSTANT = {t.value} @lineno: {t.lineno}")
         return t
 
     STRING_LITERAL = r'"[^"]*"'

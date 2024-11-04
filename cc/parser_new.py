@@ -26,6 +26,15 @@ class CCParser(Parser):
         ('left', COMMA_OP),
     )
 
+    def error(self, p):
+        if p:
+            print("Syntax error at token", p.type)
+            # Just discard the token and tell the parser it's okay.
+            for t in self.tokens:
+                print(f"error token {t}")
+        else:
+            print("Syntax error at EOF")
+
     @_('ID', 'CONSTANT', 'STRING_LITERAL', '"(" expression ")"')
     def primary_expression(self, p): pass
 
@@ -180,7 +189,7 @@ class CCParser(Parser):
 #    def initializer(self, p): pass
 
     @_('CONSTANT', 'expression',
-       '"{" constant_expression_list "}"',
+       '"{" constant_expression_list "}"'
        )
     def initializer(self, p): pass
 
@@ -189,7 +198,7 @@ class CCParser(Parser):
        )
     def constant_expression_list(self, p): pass
 
-    @_('expression')
+    @_('expression', 'expression ","')
     def constant_init_expression(self, p): pass
 
 #    @_('initializer',
@@ -373,9 +382,9 @@ class CCParser(Parser):
 
 
 if __name__ == '__main__':
-#    with open('./src/c0_tot.c', 'r') as f:
+    with open('./src/c1_tot.c', 'r') as f:
 #    with open('./src/c00.c', 'r') as f:
-    with open('cc_test.c', 'r') as f:
+#    with open('cc_test.c', 'r') as f:
         prg = f.read()
 
     lex = lexer.CLexer()

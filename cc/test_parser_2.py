@@ -82,7 +82,7 @@ class CCParser2(Parser):
     # type_specifier ::= VOID | CHAR | SHORT | INT | LONG | FLOAT | DOUBLE | SIGNED | UNSIGNED | STRUCT ID
     # initializer ::= "{" initializer_list "}" | ID | CONSTANT | empty
     # initializer_list ::= expression | initializer_list "," expression
-    # expression ::= ID | CONSTANT
+    # expression ::= ID | CONSTANT | empty
 
     @_('declaration_list')
     def translation_unit(self, p): self.dump()
@@ -102,7 +102,7 @@ class CCParser2(Parser):
     @_('expression', 'initializer_list "," expression')
     def initializer_list(self, p): self.dump()
 
-    @_('ID', 'CONSTANT')
+    @_('ID', 'CONSTANT', '')
     def expression(self, p): self.dump()
 
 
