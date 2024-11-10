@@ -12,10 +12,10 @@ class PPparser(Parser):
     @_('token', 'list_of_tokens token')
     def list_of_tokens(self, p): pass
 
-    @_('define', 'include', 'ID', 'NUMBER', 'STRING_LITERAL')
+    @_('define', 'include', 'ID', 'EXPR', 'STRING_LITERAL')
     def token(self, p): pass
 
-    @_('DEFINE ID NUMBER')
+    @_('DEFINE ID EXPR')
     def define(self, p): pass
 
     @_('INCLUDE STRING_LITERAL')
@@ -23,7 +23,7 @@ class PPparser(Parser):
 
 
 if __name__ == '__main__':
-    fn = ['./src/c0_tot.c', './src/c1_tot.c', './src/c2_tot.c', './src/cvopt.c']
+    fn = ['./src/c0_tot.c', './src/c1_tot.c', './src/c2_tot.c', './src/cvopt.c', './src/c0h.c', './src/c1h.c', './src/c2h.c']
     ind = 0
 
     for i in range(ind, len(fn)):

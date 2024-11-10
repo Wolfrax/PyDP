@@ -284,7 +284,7 @@ class CCParser(Parser):
     def function_definition(self, p): pass
 
 if __name__ == '__main__':
-    fn = ['./src/c0_tot.c', './src/c1_tot.c', './src/c2_tot.c', './src/cvopt.c']
+    fn = ['./src/c0_tot.c', './src/c1_tot.c', './src/c2_tot.c', './src/cvopt.c', './src/c0h.c', './src/c1h.c', './src/c2h.c']
     ind = 0
 
     for i in range(ind, len(fn)):
@@ -296,4 +296,4 @@ if __name__ == '__main__':
         lex = lexer.CLexer()
         parser = CCParser()
         result = parser.parse(lex.tokenize(prg))
-        print(f'CParser {fn[i]}: {result}\n\n')
+        print(f'CCParser {fn[i]}: {result}\n\n')

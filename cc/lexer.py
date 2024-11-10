@@ -7,12 +7,12 @@ __author__ = 'mm'
 from sly import Lexer
 
 class PPLexer(Lexer):  # The lexer for the preprocessor
-    tokens = {DEFINE, INCLUDE, ID, NUMBER, STRING_LITERAL}
+    tokens = {DEFINE, INCLUDE, ID, EXPR, STRING_LITERAL}
 
     DEFINE = r'[#]define'
     INCLUDE = r'[#]include'
     ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
-    NUMBER = r'\d+'
+    EXPR = r'(\d+)|([(].*[)])'  # Either a number, or expression such as "(03<<3)"
     STRING_LITERAL = r'"[^"]*"'
 
     ignore = ' \t'
