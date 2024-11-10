@@ -1,26 +1,6 @@
 from sly import Parser
 import lexer
 
-class PPparser(Parser):
-    start = 'translation_unit'
-    tokens = lexer.PPLexer.tokens
-    debugfile = 'PPparser.out'
-
-    @_('list_of_tokens')
-    def translation_unit(self, p): pass
-
-    @_('token', 'list_of_tokens token')
-    def list_of_tokens(self, p): pass
-
-    @_('define', 'include', 'ID', 'NUMBER', 'STRING_LITERAL')
-    def token(self, p): pass
-
-    @_('DEFINE ID NUMBER')
-    def define(self, p): pass
-
-    @_('INCLUDE STRING_LITERAL')
-    def include(self, p): pass
-
 
 class CCParser(Parser):
     start = 'translation_unit'
@@ -312,11 +292,6 @@ if __name__ == '__main__':
 
         with open(fn[i], 'r') as f:
             prg = f.read()
-
-        pp_lex = lexer.PPLexer()
-        pp_parser = PPparser()
-        result = pp_parser.parse(pp_lex.tokenize(prg))
-        print(f'Preprocessor {fn[i]}: {result}\n')
 
         lex = lexer.CLexer()
         parser = CCParser()

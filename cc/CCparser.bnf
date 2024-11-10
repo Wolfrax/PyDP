@@ -1,0 +1,118 @@
+1: empty ::= 
+
+2: primary_expression ::= ID | CONSTANT | STRING_LITERAL | "(" expression ")"
+
+3: postfix_expression ::= primary_expression | postfix_expression "[" expression "]" | postfix_expression "(" ")" | postfix_expression "(" argument_expression_list ")" | postfix_expression "." ID | postfix_expression POINTER ID | postfix_expression INCR | postfix_expression DECR
+
+4: argument_expression_list ::= assignment_expression | argument_expression_list "," assignment_expression
+
+5: unary_expression ::= postfix_expression | INCR unary_expression | DECR unary_expression | unary_operator cast_expression | SIZEOF unary_expression | SIZEOF "(" type_name ")"
+
+6: unary_operator ::= "&" | "*" | "+" | "-" | "~" | "!"
+
+7: cast_expression ::= unary_expression
+
+8: multiplicative_expression ::= cast_expression | multiplicative_expression "*" cast_expression | multiplicative_expression "/" cast_expression | multiplicative_expression "%" cast_expression
+
+9: additive_expression ::= multiplicative_expression | additive_expression "+" multiplicative_expression | additive_expression "-" multiplicative_expression
+
+10: shift_expression ::= additive_expression | shift_expression SHIFT_LEFT additive_expression | shift_expression SHIFT_RIGHT additive_expression
+
+11: relational_expression ::= shift_expression | relational_expression "<" shift_expression | relational_expression ">" shift_expression | relational_expression LE shift_expression | relational_expression GE shift_expression
+
+12: equality_expression ::= relational_expression | equality_expression EQ relational_expression | equality_expression NE relational_expression
+
+13: and_expression ::= equality_expression | and_expression "&" equality_expression
+
+14: exclusive_or_expression ::= and_expression | exclusive_or_expression "^" and_expression
+
+15: inclusive_or_expression ::= exclusive_or_expression | inclusive_or_expression "|" exclusive_or_expression
+
+16: logical_and_expression ::= inclusive_or_expression | logical_and_expression AND inclusive_or_expression
+
+17: logical_or_expression ::= logical_and_expression | logical_or_expression OR logical_and_expression
+
+18: conditional_expression ::= logical_or_expression | logical_or_expression "?" expression ":" conditional_expression
+
+19: assignment_expression ::= conditional_expression | unary_expression assignment_operator assignment_expression
+
+20: assignment_operator ::= "=" | ASSIGN_TIMES | ASSIGN_DIVIDE | ASSIGN_MOD | ASSIGN_PLUS | ASSIGN_MINUS | ASSIGN_LEFT | ASSIGN_RIGHT | ASSIGN_AND | ASSIGN_XOR | ASSIGN_OR
+
+21: expression ::= assignment_expression
+
+22: constant_expression ::= conditional_expression
+
+23: declaration ::= declaration_specifiers ";" | declaration_specifiers init_declarator_list ";"
+
+24: declaration_specifiers ::= storage_class_specifier | storage_class_specifier declaration_specifiers | type_specifier | type_specifier declaration_specifiers
+
+25: init_declarator_list ::= init_declarator | init_declarator_list "," init_declarator
+
+26: init_declarator ::= declarator | declarator initializer
+
+27: initializer ::= CONSTANT | "-" CONSTANT | "{" constant_expression_list "}"
+
+28: constant_expression_list ::= constant_init_expression | constant_expression_list "," constant_init_expression
+
+29: constant_init_expression ::= expression | empty
+
+30: storage_class_specifier ::= EXTERN | STATIC | AUTO | REG
+
+31: type_specifier ::= CHAR | INT | FLOAT | DOUBLE | struct_specifier
+
+32: struct_specifier ::= STRUCT ID "{" struct_declaration_list "}" | STRUCT "{" struct_declaration_list "}" | STRUCT ID
+
+33: struct_declaration_list ::= struct_declaration | struct_declaration_list struct_declaration
+
+34: struct_declaration ::= specifier_qualifier_list struct_declarator_list ";"
+
+35: specifier_qualifier_list ::= type_specifier specifier_qualifier_list | type_specifier
+
+36: struct_declarator_list ::= struct_declarator | struct_declarator_list "," struct_declarator
+
+37: struct_declarator ::= declarator
+
+38: declarator ::= pointer direct_declarator | direct_declarator
+
+39: direct_declarator ::= ID | "(" declarator ")" | direct_declarator "[" constant_expression "]" | direct_declarator "[" "]" | direct_declarator "(" parameter_type_list ")" | direct_declarator "(" identifier_list ")" | direct_declarator "(" ")"
+
+40: pointer ::= "*" | "*" pointer
+
+41: parameter_type_list ::= parameter_list
+
+42: parameter_list ::= parameter_declaration | parameter_list "," parameter_declaration
+
+43: parameter_declaration ::= declaration_specifiers declarator | declaration_specifiers abstract_declarator | declaration_specifiers
+
+44: identifier_list ::= ID | identifier_list "," ID
+
+45: type_name ::= specifier_qualifier_list | specifier_qualifier_list abstract_declarator
+
+46: abstract_declarator ::= pointer | direct_abstract_declarator | pointer direct_abstract_declarator
+
+47: direct_abstract_declarator ::= "(" abstract_declarator ")" | "[" "]" | "[" constant_expression "]" | direct_abstract_declarator "[" "]" | direct_abstract_declarator "[" constant_expression "]" | "(" ")" | "(" parameter_type_list ")" | direct_abstract_declarator "(" ")" | direct_abstract_declarator "(" parameter_type_list ")"
+
+48: statement ::= labeled_statement | compound_statement | expression_statement | selection_statement | iteration_statement | jump_statement
+
+49: labeled_statement ::= ID ":" statement | CASE constant_expression ":" statement | DEFAULT ":" statement
+
+50: compound_statement ::= "{" statement_list "}" | "{" declaration_list "}" | "{" declaration_list statement_list "}"
+
+51: declaration_list ::= declaration | declaration_list declaration
+
+52: statement_list ::= statement | statement_list statement
+
+53: expression_statement ::= ";" | expression ";"
+
+54: selection_statement ::= IF "(" expression ")" statement %prec THEN | IF "(" expression ")" statement ELSE statement | SWITCH "(" expression ")" statement
+
+55: iteration_statement ::= WHILE "(" expression ")" statement | DO statement WHILE "(" expression ")" ";" | FOR "(" expression_statement expression_statement ")" statement | FOR "(" expression_statement expression_statement expression ")" statement
+
+56: jump_statement ::= GOTO ID ";" | CONTINUE ";" | BREAK ";" | RETURN ";" | RETURN expression ";"
+
+57: translation_unit ::= external_declaration | translation_unit external_declaration
+
+58: external_declaration ::= function_definition | declaration
+
+59: function_definition ::= declaration_specifiers declarator declaration_list compound_statement | declaration_specifiers declarator compound_statement | declarator declaration_list compound_statement | declarator compound_statement
+
