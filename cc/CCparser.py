@@ -1,10 +1,12 @@
 from sly import Parser
-import lexer
+import CClexer
+from CCast import *
 
+ptype = lambda p: p._slice[0].type
 
 class CCParser(Parser):
     start = 'translation_unit'
-    tokens = lexer.CLexer.tokens
+    tokens = CClexer.CLexer.tokens
     debugfile = 'CCparser.out'
 
     precedence = (
@@ -30,84 +32,161 @@ class CCParser(Parser):
     def empty(self, p): pass
 
     @_('ID', 'CONSTANT', 'STRING_LITERAL', '"(" expression ")"')
-    def primary_expression(self, p): pass
+    def primary_expression(self, p):
+        return PrimaryExpression(p.lineno, p[0]) if len(p) == 1 else p[1]
+
+    # Note, postfix expressions are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    #        @_('primary_expression',
+    #            'postfix_expression "[" expression "]"',
+    #            'postfix_expression "(" ")"',
+    #            'postfix_expression "(" argument_expression_list ")"',
+    #            'postfix_expression "." ID',
+    #            'postfix_expression POINTER ID',
+    #            'postfix_expression INCR',
+    #            'postfix_expression DECR')
+    #        def postfix_expression(self, p): pass
+
+    @_('postfix_expression "[" expression "]"')
+    def postfix_expression_subscript(self, p):
+        return p[0] if len(p) == 1 else PFESubscript(p.lineno, p.expression)
+
+    @_('postfix_expression "(" ")"',
+       'postfix_expression "(" argument_expression_list ")"')
+    def postfix_expression_function_call(self, p):
+        # FIX ArgumentEXpressionList object here??
+        args = None if len(p) > 2 else p[1]
+        return PFEFunctionCall(p.lineno, p.postfix_expression, args)
+
+    @_('postfix_expression "." ID', 'postfix_expression POINTER ID')
+    def postfix_expression_member_of_structure(self, p):
+        return PFEMemberOfStructure(p.lineno, p.postfix_expression, p[1], p.ID)
+
+    @_('postfix_expression INCR', 'postfix_expression DECR')
+    def postfix_expression_incr_decr(self, p):
+        return PFEIncrDecr(p.lineno, p.postfix_expression, p[1])
 
     @_('primary_expression',
-       'postfix_expression "[" expression "]"',
-       'postfix_expression "(" ")"',
-       'postfix_expression "(" argument_expression_list ")"',
-       'postfix_expression "." ID',
-       'postfix_expression POINTER ID',
-       'postfix_expression INCR',
-       'postfix_expression DECR')
-    def postfix_expression(self, p): pass
+       'postfix_expression_subscript',
+       'postfix_expression_function_call',
+       'postfix_expression_member_of_structure',
+       'postfix_expression_incr_decr')
+    def postfix_expression(self, p):
+        return p[0]
 
     @_('assignment_expression',
        'argument_expression_list "," assignment_expression')
-    def argument_expression_list(self, p): pass
+    def argument_expression_list(self, p):
+        if len(p) == 1:
+            return p[0]
+        else:
+            p.argument_expression_list.append(p[2])
+
+        return p[0] if len(p) == 1 else ArgumentExpressionList(p.lineno, p.assignment_expression)
+        return p[0] if len(p) == 1 else ArgumentExpressionList(p.lineno, p.assignment_expression)
+
+    # Note, unary expressions are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('postfix_expression',
+    #    'INCR unary_expression',
+    #    'DECR unary_expression',
+    #    'unary_operator cast_expression',
+    #    'SIZEOF unary_expression',
+    #    'SIZEOF "(" type_name ")"')
+    # def unary_expression(self, p): pass
+
+    @_('INCR unary_expression', 'DECR unary_expression')
+    def unary_expression_incr_decr(self, p):
+        return UnaryExpressionIncrDecr(p.lineno, p.unary_expression, p[0])
+
+    @_('unary_operator cast_expression')
+    def unary_operator_cast_expression(self, p):
+        return UnaryExpressionCastExpr(p.lineno, p.cast_expression, p.unary_operator)
+
+    @_('SIZEOF unary_expression')
+    def unary_expression_sizeof(self, p):
+        return UnaryExpressionSizeof(p.lineno, p.unary_expression)
+
+    @_('SIZEOF "(" type_name ")"')
+    def unary_expression_sizeof_typename(self, p):
+        return UnaryExpressionSizeofType(p.lineno, p.type_name)
 
     @_('postfix_expression',
-       'INCR unary_expression',
-       'DECR unary_expression',
-       'unary_operator cast_expression',
-       'SIZEOF unary_expression',
-       'SIZEOF "(" type_name ")"')
-    def unary_expression(self, p): pass
+       'unary_expression_incr_decr',
+       'unary_operator_cast_expression',
+       'unary_expression_sizeof',
+       'unary_expression_sizeof_typename')
+    def unary_expression(self, p):
+        return p[0]
 
     @_('"&"', '"*"', '"+"', '"-"', '"~"', '"!"')
-    def unary_operator(self, p): pass
+    def unary_operator(self, p):
+        return p[0]
 
     @_('unary_expression')
-    def cast_expression(self, p): pass
+    def cast_expression(self, p):
+        return CastExpression(p.lineno, p.unary_expression)
 
     @_('cast_expression',
        'multiplicative_expression "*" cast_expression',
        'multiplicative_expression "/" cast_expression',
        'multiplicative_expression "%" cast_expression')
-    def multiplicative_expression(self, p): pass
+    def multiplicative_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('multiplicative_expression',
        'additive_expression "+" multiplicative_expression',
        'additive_expression "-" multiplicative_expression')
-    def additive_expression(self, p): pass
+    def additive_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('additive_expression',
        'shift_expression SHIFT_LEFT additive_expression',
        'shift_expression SHIFT_RIGHT additive_expression')
-    def shift_expression(self, p): pass
+    def shift_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('shift_expression',
        'relational_expression "<" shift_expression',
        'relational_expression ">" shift_expression',
        'relational_expression LE shift_expression',
        'relational_expression GE shift_expression')
-    def relational_expression(self, p): pass
+    def relational_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('relational_expression',
        'equality_expression EQ relational_expression',
        'equality_expression NE relational_expression')
-    def equality_expression(self, p): pass
+    def equality_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('equality_expression', 'and_expression "&" equality_expression')
-    def and_expression(self, p): pass
+    def and_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('and_expression', 'exclusive_or_expression "^" and_expression')
-    def exclusive_or_expression(self, p): pass
+    def exclusive_or_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('exclusive_or_expression', 'inclusive_or_expression "|" exclusive_or_expression')
-    def inclusive_or_expression(self, p): pass
+    def inclusive_or_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('inclusive_or_expression', 'logical_and_expression AND inclusive_or_expression')
-    def logical_and_expression(self, p): pass
+    def logical_and_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('logical_and_expression', 'logical_or_expression OR logical_and_expression')
-    def logical_or_expression(self, p): pass
+    def logical_or_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('logical_or_expression', 'logical_or_expression "?" expression ":" conditional_expression')
-    def conditional_expression(self, p): pass
+    def conditional_expression(self, p):
+        return p[0] if len(p) == 1 else ConditionalExpression(p.lineno, p[0], p[2], p[4])
 
     @_('conditional_expression', 'unary_expression assignment_operator assignment_expression')
-    def assignment_expression(self, p): pass
+    def assignment_expression(self, p):
+        return p[0] if len(p) == 1 else BinOpExpression(p.lineno, p[0], p[2], p[1])
 
     @_('"="',
        'ASSIGN_TIMES',
@@ -120,22 +199,41 @@ class CCParser(Parser):
        'ASSIGN_AND',
        'ASSIGN_XOR',
        'ASSIGN_OR')
-    def assignment_operator(self, p): pass
+    def assignment_operator(self, p):
+        return p[0]
 
     @_('assignment_expression')
-    def expression(self, p): pass
+    def expression(self, p):
+        return p[0]
 
     @_('conditional_expression')
-    def constant_expression(self, p): pass
+    def constant_expression(self, p):
+        return p[0]
 
     @_('declaration_specifiers ";"', 'declaration_specifiers init_declarator_list ";"')
-    def declaration(self, p): pass
+    def declaration(self, p):
+        return Declaration(p.lineno, p[0]) if len(p) == 2 else Declaration(p.lineno, p[0], p[1])
 
-    @_('storage_class_specifier',
-       'storage_class_specifier declaration_specifiers',
-       'type_specifier',
-       'type_specifier declaration_specifiers')
-    def declaration_specifiers(self, p): pass
+    # Note, declaration specifiers are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('storage_class_specifier',
+    #    'storage_class_specifier declaration_specifiers',
+    #    'type_specifier',
+    #    'type_specifier declaration_specifiers')
+    # def declaration_specifiers(self, p):
+    #     pass
+
+    @_('storage_class_specifier', 'storage_class_specifier declaration_specifiers')
+    def declaration_specifiers_storage_class(self, p):
+        pass
+
+    @_('type_specifier', 'type_specifier declaration_specifiers')
+    def declaration_specifiers_type_specifier(self, p):
+        pass
+
+    @_('declaration_specifiers_storage_class', 'declaration_specifiers_type_specifier')
+    def declaration_specifiers(self, p):
+        pass
 
     @_('init_declarator', 'init_declarator_list "," init_declarator')
     def init_declarator_list(self, p): pass
@@ -293,7 +391,7 @@ if __name__ == '__main__':
         with open(fn[i], 'r') as f:
             prg = f.read()
 
-        lex = lexer.CLexer()
+        lex = CClexer.CLexer()
         parser = CCParser()
         result = parser.parse(lex.tokenize(prg))
-        print(f'CCParser {fn[i]}: {result}\n\n')
+        print(f'CCParser {fn[i]}: {result}')

@@ -76,8 +76,6 @@ class CLexer(Lexer):
     def ignore_newline(self, t):
         self.lineno += len(t.value)
 
-    STRING_LITERAL = r'"[^"]*"'
-
     # 1.0, -1.0, +1., -.1, -1.0e23, +1e-23, -1e-23
     # https://stackoverflow.com/questions/13252101/regular-expressions-match-floating-point-number-but-not-integer
     @_(# r'[-|+]?0[0-7]+',  # Octal
@@ -153,6 +151,7 @@ class CLexer(Lexer):
     ASSIGN_XOR = r'=\^'
     ASSIGN_OR = r'=\|'
 
+    STRING_LITERAL = r'"[^"]*"'
 
     def error(self, t):
         print('CLexer - Line %d: Bad character %r' % (self.lineno, t.value[0]))
