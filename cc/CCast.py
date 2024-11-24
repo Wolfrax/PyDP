@@ -63,8 +63,8 @@ class PostfixExpression(Expression):
         return f'PFE - {self.lineno}: {self.expr} {arg}'
 
 class PFESubscript(PostfixExpression):
-    def __init__(self, lineno, expr):
-        super().__init__(lineno, expr)
+    def __init__(self, lineno, expr, args=None):
+        super().__init__(lineno, expr, args)
 
 class PFEFunctionCall(PostfixExpression):
     def __init__(self, lineno, expr, args):
@@ -125,13 +125,30 @@ class ConditionalExpression(Expression):
         self.expr2 = expr2
         self.expr3 = expr3
 
-class Declaration(Node):
-    def __init__(self, lineno, specifiers, init_list=None):
-        super().__init__(lineno)
-        self.specifiers = specifiers
-        self.init_list = init_list
-
 class ArgumentExpressionList(Expression):
     def __init__(self, lineno, expr):
         super().__init__(lineno, expr)
 
+class Declaration(Node):
+    def __init__(self, lineno, decl_specifier, initializer=None):
+        super().__init__(lineno)
+        self.decl_specifier = decl_specifier
+        self.initializer = initializer
+
+class DeclarationSpecifierStorageClass(Declaration):
+    def __init__(self, lineno, decl_specifier, storage_class):
+        super().__init__(lineno, decl_specifier)
+        self.storage_class = storage_class
+
+class DeclarationSpecifierTypeSpecifier(Declaration):
+    def __init__(self, lineno, decl_specifier, type_specifier):
+        super().__init__(lineno, decl_specifier)
+        self.type_specifier = type_specifier
+
+class DeclarationSpecifier(Declaration):
+    def __init__(self, lineno, decl_specifier):
+        super().__init__(lineno, decl_specifier)
+
+class InitDeclarator(Declaration):
+    def __init__(self, lineno, declarator, initializer):
+        super().__init__(lineno, declarator, initializer)

@@ -49,13 +49,12 @@ class CCParser(Parser):
 
     @_('postfix_expression "[" expression "]"')
     def postfix_expression_subscript(self, p):
-        return p[0] if len(p) == 1 else PFESubscript(p.lineno, p.expression)
+        return PFESubscript(p.lineno, p.postfix_expression, p.expression)
 
     @_('postfix_expression "(" ")"',
        'postfix_expression "(" argument_expression_list ")"')
     def postfix_expression_function_call(self, p):
-        # FIX ArgumentEXpressionList object here??
-        args = None if len(p) > 2 else p[1]
+        args = p[2] if len(p) > 2 else None
         return PFEFunctionCall(p.lineno, p.postfix_expression, args)
 
     @_('postfix_expression "." ID', 'postfix_expression POINTER ID')
@@ -72,18 +71,15 @@ class CCParser(Parser):
        'postfix_expression_member_of_structure',
        'postfix_expression_incr_decr')
     def postfix_expression(self, p):
-        return p[0]
+        return PostfixExpression(p.lineno, p[0])  # return p[0]?
 
     @_('assignment_expression',
        'argument_expression_list "," assignment_expression')
     def argument_expression_list(self, p):
-        if len(p) == 1:
-            return p[0]
-        else:
-            p.argument_expression_list.append(p[2])
-
-        return p[0] if len(p) == 1 else ArgumentExpressionList(p.lineno, p.assignment_expression)
-        return p[0] if len(p) == 1 else ArgumentExpressionList(p.lineno, p.assignment_expression)
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p.argument_expression_list + [p[2]])
 
     # Note, unary expressions are split into several production to distinguish them in AST
     # If not split, the combined production is as below
@@ -117,7 +113,7 @@ class CCParser(Parser):
        'unary_expression_sizeof',
        'unary_expression_sizeof_typename')
     def unary_expression(self, p):
-        return p[0]
+        return UnaryExpression(p.lineno, p[0])  # return p[0]
 
     @_('"&"', '"*"', '"+"', '"-"', '"~"', '"!"')
     def unary_operator(self, p):
@@ -225,21 +221,29 @@ class CCParser(Parser):
 
     @_('storage_class_specifier', 'storage_class_specifier declaration_specifiers')
     def declaration_specifiers_storage_class(self, p):
-        pass
+        decl = None if len(p) == 1 else p[1]
+        return DeclarationSpecifierStorageClass(p.lineno, decl, p[0])
 
     @_('type_specifier', 'type_specifier declaration_specifiers')
     def declaration_specifiers_type_specifier(self, p):
-        pass
+        decl = None if len(p) == 1 else p[1]
+        return DeclarationSpecifierTypeSpecifier(p.lineno, decl, p[0])
 
     @_('declaration_specifiers_storage_class', 'declaration_specifiers_type_specifier')
     def declaration_specifiers(self, p):
-        pass
+        return DeclarationSpecifier(p.lineno, p[0])
 
     @_('init_declarator', 'init_declarator_list "," init_declarator')
-    def init_declarator_list(self, p): pass
+    def init_declarator_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p.init_declarator_list + [p[2]])
 
     @_('declarator', 'declarator initializer')
-    def init_declarator(self, p): pass
+    def init_declarator(self, p):
+        initializer = None if len(p) == 1 else p[1]
+        return InitDeclarator(p.lineno, p[0], initializer)
 
     @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"')
     def initializer(self, p): pass
