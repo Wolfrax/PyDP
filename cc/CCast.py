@@ -152,3 +152,13 @@ class DeclarationSpecifier(Declaration):
 class InitDeclarator(Declaration):
     def __init__(self, lineno, declarator, initializer):
         super().__init__(lineno, declarator, initializer)
+
+class Initializer(Node):
+    def __init__(self, lineno, value, expr=None):
+        super().__init__(lineno)
+        self.value = value
+        self.expr = expr
+
+class ConstantInitExpression(Expression):
+    def __init__(self, lineno, expr):
+        super().__init__(lineno, expr)

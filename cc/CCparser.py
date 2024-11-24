@@ -79,7 +79,7 @@ class CCParser(Parser):
         # Note, construction for lists;
         #   return first production as a new list
         #   return list with last element added to list
-        return [p[0]] if len(p) == 1 else (p.argument_expression_list + [p[2]])
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
     # Note, unary expressions are split into several production to distinguish them in AST
     # If not split, the combined production is as below
@@ -238,7 +238,7 @@ class CCParser(Parser):
         # Note, construction for lists;
         #   return first production as a new list
         #   return list with last element added to list
-        return [p[0]] if len(p) == 1 else (p.init_declarator_list + [p[2]])
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
     @_('declarator', 'declarator initializer')
     def init_declarator(self, p):
@@ -246,19 +246,36 @@ class CCParser(Parser):
         return InitDeclarator(p.lineno, p[0], initializer)
 
     @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"')
-    def initializer(self, p): pass
+    def initializer(self, p):
+        if len(p) == 1:
+            return Initializer(p.lineno, p[0])
+        elif len(p) == 2:
+            return Initializer(p.lineno, -p[1])
+        else:
+            return Initializer(p.lineno, None, p[1])
+
 
     @_('constant_init_expression', 'constant_expression_list "," constant_init_expression')
-    def constant_expression_list(self, p): pass
+    def constant_expression_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
     @_('expression', 'empty')
-    def constant_init_expression(self, p): pass
+    def constant_init_expression(self, p):
+        if ptype(p) == 'empty':
+            pass
+        else:
+            return ConstantInitExpression(p.lineno, p[0])
 
     @_('EXTERN', 'STATIC', 'AUTO', 'REG')
-    def storage_class_specifier(self, p): pass
+    def storage_class_specifier(self, p):
+        return p[0]
 
     @_('CHAR', 'INT', 'FLOAT', 'DOUBLE', 'struct_specifier')
-    def type_specifier(self, p): pass
+    def type_specifier(self, p):
+        return p[0]
 
     @_('STRUCT ID "{" struct_declaration_list "}"',
        'STRUCT "{" struct_declaration_list "}"',
