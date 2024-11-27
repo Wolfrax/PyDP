@@ -9,6 +9,8 @@ class CCParser(Parser):
     tokens = CClexer.CLexer.tokens
     debugfile = 'CCparser.out'
 
+    prg = []
+
     precedence = (
         ('nonassoc', THEN),
         ('nonassoc', ELSE),
@@ -49,21 +51,21 @@ class CCParser(Parser):
 
     @_('postfix_expression "[" expression "]"')
     def postfix_expression_subscript(self, p):
-        return PFESubscript(p.lineno, p.postfix_expression, p.expression)
+        return PostfixExpressionSubscript(p.lineno, p[0], p[2])
 
     @_('postfix_expression "(" ")"',
        'postfix_expression "(" argument_expression_list ")"')
     def postfix_expression_function_call(self, p):
         args = p[2] if len(p) > 2 else None
-        return PFEFunctionCall(p.lineno, p.postfix_expression, args)
+        return PostfixExpressionFunctionCall(p.lineno, p.postfix_expression, args)
 
     @_('postfix_expression "." ID', 'postfix_expression POINTER ID')
     def postfix_expression_member_of_structure(self, p):
-        return PFEMemberOfStructure(p.lineno, p.postfix_expression, p[1], p.ID)
+        return PostfixExpressionMemberOfStructure(p.lineno, p.postfix_expression, p[1], p.ID)
 
     @_('postfix_expression INCR', 'postfix_expression DECR')
     def postfix_expression_incr_decr(self, p):
-        return PFEIncrDecr(p.lineno, p.postfix_expression, p[1])
+        return PostfixExpressionIncrDecr(p.lineno, p.postfix_expression, p[1])
 
     @_('primary_expression',
        'postfix_expression_subscript',
@@ -254,7 +256,6 @@ class CCParser(Parser):
         else:
             return Initializer(p.lineno, None, p[1])
 
-
     @_('constant_init_expression', 'constant_expression_list "," constant_init_expression')
     def constant_expression_list(self, p):
         # Note, construction for lists;
@@ -280,69 +281,121 @@ class CCParser(Parser):
     @_('STRUCT ID "{" struct_declaration_list "}"',
        'STRUCT "{" struct_declaration_list "}"',
        'STRUCT ID')
-    def struct_specifier(self, p): pass
+    def struct_specifier(self, p):
+        if len(p) == 2:
+            return StructSpecifier(p.lineno, p[0], None)
+        elif len(p) == 4:
+            return StructSpecifier(p.lineno, None, p[2])
+        else:
+            return StructSpecifier(p.lineno, p[0], p[3])
 
     @_('struct_declaration', 'struct_declaration_list struct_declaration')
-    def struct_declaration_list(self, p): pass
+    def struct_declaration_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[1]])
+
 
     @_('specifier_qualifier_list struct_declarator_list ";"')
-    def struct_declaration(self, p): pass
+    def struct_declaration(self, p):
+        return StructDeclaration(p.lineno, p[0], p[1])
 
-    @_('type_specifier specifier_qualifier_list', 'type_specifier')
-    def specifier_qualifier_list(self, p): pass
+    @_('type_specifier', 'specifier_qualifier_list type_specifier')
+    def specifier_qualifier_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[1]])
+
 
     @_('struct_declarator', 'struct_declarator_list "," struct_declarator')
-    def struct_declarator_list(self, p): pass
+    def struct_declarator_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
     @_('declarator')
-    def struct_declarator(self, p): pass
+    def struct_declarator(self, p):
+        return StructDeclarator(p.lineno, p[0])
 
     @_('pointer direct_declarator', 'direct_declarator')
-    def declarator(self, p): pass
+    def declarator(self, p):
+        return Declarator(p.lineno, p[0]) if len(p) == 1 else Declarator(p.lineno, p[1], p[0])
 
-    @_('ID',
-       '"(" declarator ")"',
-       'direct_declarator "[" constant_expression "]"',
-       'direct_declarator "[" "]"',
-       'direct_declarator "(" parameter_type_list ")"',
-       'direct_declarator "(" identifier_list ")"',
-       'direct_declarator "(" ")"')
+    # Note, direct declarator are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('ID',
+    #    '"(" declarator ")"',
+    #    'direct_declarator "[" constant_expression "]"',
+    #    'direct_declarator "[" "]"',
+    #    'direct_declarator "(" parameter_type_list ")"',
+    #    'direct_declarator "(" identifier_list ")"',
+    #    'direct_declarator "(" ")"')
+    # def direct_declarator(self, p):
+    #     pass
+
+    @_('ID', '"(" declarator ")"')
+    def direct_declarator_ID(self, p):
+        return DirectDeclaratorID(p.lineno, p[0]) if len(p) == 1 else DirectDeclaratorID(p.lineno, p[1])
+
+    @_('direct_declarator "[" constant_expression "]"', 'direct_declarator "[" "]"')
+    def direct_declarator_constant_expression(self, p):
+        if len(p) == 4:
+            return DirectDeclaratorConstantExpression(p.lineno, p[0], p[2])
+        else:
+            return DirectDeclaratorConstantExpression(p.lineno, p[0])
+
+    @_('direct_declarator "(" parameter_type_list ")"')
+    def direct_declarator_parameter_type_list(self, p):
+        return DirectDeclaratorParameterTypeList(p.lineno, p[0], p[2])
+
+    @_('direct_declarator "(" identifier_list ")"', 'direct_declarator "(" ")"')
+    def direct_declarator_identifier_list(self, p):
+        if len(p) == 4:
+            return DirectDeclaratorIdentifierList(p.lineno, p[0], p[2])
+        else:
+            return DirectDeclaratorIdentifierList(p.lineno, p[0])
+
+    @_('direct_declarator_ID',
+       'direct_declarator_constant_expression',
+       'direct_declarator_parameter_type_list',
+       'direct_declarator_identifier_list')
     def direct_declarator(self, p):
-        pass
+        return DirectDeclarator(p.lineno, p[0])
 
     @_('"*"', '"*" pointer')
-    def pointer(self, p): pass
+    def pointer(self, p):
+        return Pointer(p.lineno, p[1])if len(p) == 2 else Pointer(p.lineno)
 
     @_('parameter_list')
-    def parameter_type_list(self, p): pass
+    def parameter_type_list(self, p):
+        return ParameterTypeList(p.lineno, p[0])
 
     @_('parameter_declaration', 'parameter_list "," parameter_declaration')
-    def parameter_list(self, p): pass
+    def parameter_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
     @_('declaration_specifiers declarator',
-       'declaration_specifiers abstract_declarator',
+       'declaration_specifiers pointer',
        'declaration_specifiers')
-    def parameter_declaration(self, p): pass
+    def parameter_declaration(self, p):
+        return ParameterDeclaration(p.lineno, p[0], p[1]) if len(p) == 1 else ParameterDeclaration(p.lineno, p[0])
 
     @_('ID', 'identifier_list "," ID')
-    def identifier_list(self, p): pass
+    def identifier_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[2]])
 
-    @_('specifier_qualifier_list', 'specifier_qualifier_list abstract_declarator')
-    def type_name(self, p): pass
-
-    @_('pointer', 'direct_abstract_declarator', 'pointer direct_abstract_declarator')
-    def abstract_declarator(self, p): pass
-
-    @_('"(" abstract_declarator ")"',
-       '"[" "]"',
-       '"[" constant_expression "]"',
-       'direct_abstract_declarator "[" "]"',
-       'direct_abstract_declarator "[" constant_expression "]"',
-       '"(" ")"',
-       '"(" parameter_type_list ")"',
-       'direct_abstract_declarator "(" ")"',
-       'direct_abstract_declarator "(" parameter_type_list ")"')
-    def direct_abstract_declarator(self, p): pass
+    @_('specifier_qualifier_list', 'specifier_qualifier_list pointer')
+    def type_name(self, p):
+        return TypeName(p.lineno, p[0]) if len(p) == 1 else TypeName(p.lineno, p[0], p[1])
 
     @_('labeled_statement',
        'compound_statement',
@@ -350,57 +403,162 @@ class CCParser(Parser):
        'selection_statement',
        'iteration_statement',
        'jump_statement')
-    def statement(self, p): pass
+    def statement(self, p):
+        return Statement(p.lineno, p[0])
 
     @_('ID ":" statement',
        'CASE constant_expression ":" statement',
        'DEFAULT ":" statement')
-    def labeled_statement(self, p): pass
+    def labeled_statement(self, p):
+        return LabeledStatement(p.lineno, p[0], None, p[2]) if len(p) == 3 \
+            else LabeledStatement(p.lineno, p[0], p[1], p[3])
 
-    @_('"{" statement_list "}"',
-       '"{" declaration_list "}"',
-       '"{" declaration_list statement_list "}"')
-    def compound_statement(self, p): pass
+    # Note, compound statement are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('"{" statement_list "}"',
+    #    '"{" declaration_list "}"',
+    #    '"{" declaration_list statement_list "}"')
+    # def compound_statement(self, p): pass
+
+    @_('"{" statement_list "}"')
+    def compound_statement_statement_list(self, p):
+        return CompoundStatementStatementList(p.lineno, p[1])
+
+    @_('"{" declaration_list "}"')
+    def compound_statement_declaration_list(self, p):
+        return CompoundStatementDeclarationList(p.lineno, p[1])
+
+    @_('"{" declaration_list statement_list "}"')
+    def compound_statement_declaration_list_statement_list(self, p):
+        return CompoundStatementDeclarationListStatementList(p.lineno, p[0], p[1])
+
+    @_('compound_statement_statement_list',
+       'compound_statement_declaration_list',
+       'compound_statement_declaration_list_statement_list')
+    def compound_statement(self, p):
+        return CompoundStatement(p.lineno, p[0])
 
     @_('declaration', 'declaration_list declaration')
-    def declaration_list(self, p): pass
+    def declaration_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[1]])
 
     @_('statement', 'statement_list statement')
-    def statement_list(self, p): pass
+    def statement_list(self, p):
+        # Note, construction for lists;
+        #   return first production as a new list
+        #   return list with last element added to list
+        return [p[0]] if len(p) == 1 else (p[0] + [p[1]])
 
     @_('";"', 'expression ";"')
-    def expression_statement(self, p): pass
+    def expression_statement(self, p):
+        if len(p) == 2:
+            return ExpressionStatement(p.lineno, p[0])
+        else:
+            pass
 
     # https://stackoverflow.com/questions/12731922/reforming-the-grammar-to-remove-shift-reduce-conflict-in-if-then-else
-    @_('IF "(" expression ")" statement %prec THEN',
-       'IF "(" expression ")" statement ELSE statement',
-       'SWITCH "(" expression ")" statement')
-    def selection_statement(self, p): pass
+    # Note, selection statement are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('IF "(" expression ")" statement %prec THEN',
+    #    'IF "(" expression ")" statement ELSE statement',
+    #    'SWITCH "(" expression ")" statement')
+    # def selection_statement(self, p): pass
+
+    @_('IF "(" expression ")" statement %prec THEN', 'IF "(" expression ")" statement ELSE statement')
+    def selection_statement_if_then_else(self, p):
+        if len(p) == 5:
+            return SelectionStatementIfThenElse(p.lineno, None, p[2], p[4])
+        else:
+            return SelectionStatementIfThenElse(p.lineno, p[5], p[2], p[4], p[6])
+
+    @_('SWITCH "(" expression ")" statement')
+    def selection_statement_switch(self, p):
+        return SelectionStatementSwitch(p.lineno, p[2], p[4])
+
+    @_('selection_statement_if_then_else',
+       'selection_statement_switch')
+    def selection_statement(self, p):
+        return SelectionStatement(p.lineno, p[0])
+
+    # Note, iteration statement are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('WHILE "(" expression ")" statement',
+    #    'DO statement WHILE "(" expression ")" ";"',
+    #    'FOR "(" expression_statement expression_statement ")" statement',
+    #    'FOR "(" expression_statement expression_statement expression ")" statement')
+    # def iteration_statement(self, p): pass
 
     @_('WHILE "(" expression ")" statement',
-       'DO statement WHILE "(" expression ")" ";"',
-       'FOR "(" expression_statement expression_statement ")" statement',
+       'DO statement WHILE "(" expression ")" ";"')
+    def iteration_statement_while(self, p):
+        if len(p) == 5:
+            return IterationStatementWhile(p.lineno, p[0], p[2], p[4])
+        else:
+            return IterationStatementWhile(p.lineno, p[0], p[4], p[1])
+
+    @_('FOR "(" expression_statement expression_statement ")" statement',
        'FOR "(" expression_statement expression_statement expression ")" statement')
-    def iteration_statement(self, p): pass
+    def iteration_statement_for(self, p):
+        if len(p) == 6:
+            return IterationStatementFor(p.lineno, None, p[2], p[3], p[5])
+        else:
+            return IterationStatementFor(p.lineno, p[4], p[2], p[3], p[6])
+
+    @_('iteration_statement_while',
+       'iteration_statement_for')
+    def iteration_statement(self, p):
+        return IterationStatement(p.lineno, p[0])
 
     @_('GOTO ID ";"',
        'CONTINUE ";"',
        'BREAK ";"',
        'RETURN ";"',
        'RETURN expression ";"')
-    def jump_statement(self, p): pass
+    def jump_statement(self, p):
+        if len(p) == 2:
+            return JumpStatement(p.lineno, p[0])
+        else:
+            return JumpStatement(p.lineno, p[0], p[1])
 
     @_('external_declaration', 'translation_unit external_declaration')
-    def translation_unit(self, p): pass
+    def translation_unit(self, p):
+        self.prg.append(p[0]) if len(p) == 1 else self.prg.append(p[1])
 
     @_('function_definition', 'declaration')
-    def external_declaration(self, p): pass
+    def external_declaration(self, p):
+        return ExternalDeclaration(p.lineno, p[0])
+
+    # Note, function definition are split into several production to distinguish them in AST
+    # If not split, the combined production is as below
+    # @_('declaration_specifiers declarator declaration_list compound_statement',
+    #    'declaration_specifiers declarator compound_statement',
+    #    'declarator declaration_list compound_statement',
+    #    'declarator compound_statement')
+    # def function_definition(self, p): pass
 
     @_('declaration_specifiers declarator declaration_list compound_statement',
-       'declaration_specifiers declarator compound_statement',
-       'declarator declaration_list compound_statement',
+       'declaration_specifiers declarator compound_statement')
+    def function_definition_declaration_specifiers(self, p):
+        if len(p) == 4:
+            return FunctionDefinitionDeclarationSpecifier(p.lineno, p[0], p[1], p[2], p[3])
+        else:
+            return FunctionDefinitionDeclarationSpecifier(p.lineno, p[0], p[1], None, p[2])
+
+    @_('declarator declaration_list compound_statement',
        'declarator compound_statement')
-    def function_definition(self, p): pass
+    def function_definition_declarator(self, p):
+        if len(p) == 3:
+            return FunctionDefinitionDeclarator(p.lineno, p[0], p[1], p[2])
+        else:
+            return FunctionDefinitionDeclarator(p.lineno, p[0], None, p[1])
+
+    @_('function_definition_declaration_specifiers',
+       'function_definition_declarator')
+    def function_definition(self, p):
+        return FunctionDefinition(p.lineno, p[0])
 
 if __name__ == '__main__':
     fn = ['./src/c0_tot.c', './src/c1_tot.c', './src/c2_tot.c', './src/cvopt.c', './src/c0h.c', './src/c1h.c', './src/c2h.c']
