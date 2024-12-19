@@ -1,12 +1,12 @@
 from sly import Parser
-import lexer
+import CClexer
 
 Defines = {}
 Includes = {}
 
 class PPparser(Parser):
     start = 'translation_unit'
-    tokens = lexer.PPLexer.tokens
+    tokens = CClexer.PPLexer.tokens
     debugfile = 'PPparser.out'
 
     @_('list_of_tokens')
@@ -32,11 +32,12 @@ class PPparser(Parser):
 
 if __name__ == '__main__':
     dir = './src/'
-    fn = ['c0_tot.c', 'c1_tot.c', 'c2_tot.c', 'cvopt.c']
+    #fn = ['c0_tot.c', 'c1_tot.c', 'c2_tot.c', 'cvopt.c']
+    fn = ['c00.c']
     ind = 0
 
     pp_parser = PPparser()
-    pp_lex = lexer.PPLexer()
+    pp_lex = CClexer.PPLexer()
 
     for i in range(ind, len(fn)):
         print(f'Parsing file {fn[i]}')
