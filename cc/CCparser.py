@@ -1,7 +1,6 @@
 from sly import Parser
 import CClexer
 from CCast import *
-from CCast import pstr
 import json
 
 """
@@ -16,7 +15,7 @@ class CCParser(Parser):
     tokens = CClexer.CLexer.tokens
     debugfile = 'CCparser.out'
 
-    prg = []
+    prg = Program()
 
     precedence = (
         ('nonassoc', THEN),
@@ -37,21 +36,12 @@ class CCParser(Parser):
         ('left', "(", ")", "[", "]", ".", POINTER)
     )
 
-    def print(self):
-        for item in self.prg:
-            print(f"{item.lineno}: {item}")
-            pstr.reset_indent()
-
     def dumps(self):
-        res = '[\n'
-        for stmt in self.prg:
-            res += (json.dumps(stmt, indent=2, default=lambda o: o.__dict__) + ',')
-        return res[:-1] + '\n]'
+        return json.dumps(self.prg, indent=2, default=lambda o: o.__dict__)
 
     def dump(self, fn):
-        dump_str = self.dumps()
         with open(fn, 'w') as f:
-            f.write(dump_str)
+            json.dump(self.prg, f, indent=2, default=lambda o: o.__dict__)
 
     def generate_ir(self):
         for item in self.prg:
@@ -349,14 +339,14 @@ class CCParser(Parser):
 
     @_('ID', '"(" declarator ")"')
     def direct_declarator_ID(self, p):
-        return p[0] if len(p) == 1 else DirectDeclarator(p.lineno, id=None, identifiers=None, decl=p[1], expr=None)
+        return p[0] if len(p) == 1 else DirectDeclarator(p.lineno, identifiers=None, decl=p[1], expr=None)
 #        return DirectDeclarator(p.lineno, id=p[0], identifiers=None, decl=None, expr=None) if len(p) == 1 \
 #            else DirectDeclarator(p.lineno, id=None, identifiers=None, decl=p[1], expr=None)
 
     @_('direct_declarator "[" constant_expression "]"', 'direct_declarator "[" "]"')
     def direct_declarator_array(self, p):
         if len(p) == 4:
-            return DirectDeclarator(p.lineno, id=None, identifiers=None, decl=p[0], expr=p[2])
+            return DirectDeclarator(p.lineno, identifiers=None, decl=p[0], expr=p[2])
         else:
             return p[0]
 #        if len(p) == 4:
@@ -367,7 +357,7 @@ class CCParser(Parser):
     @_('direct_declarator "(" identifier_list ")"', 'direct_declarator "(" ")"')
     def direct_declarator_function(self, p):
         if len(p) == 4:
-            return DirectDeclarator(p.lineno, id=None, identifiers=ASTList(p.lineno, items=p[2]), decl=p[0], expr=None)
+            return DirectDeclarator(p.lineno, identifiers=ASTList(p.lineno, items=p[2]), decl=p[0], expr=None)
         else:
             return p[0]
 #        if len(p) == 4:
@@ -524,7 +514,8 @@ class CCParser(Parser):
 
     @_('external_declaration', 'translation_unit external_declaration')
     def translation_unit(self, p):
-        self.prg.append(p[0]) if len(p) == 1 else self.prg.append(p[1])
+        self.prg.translation_unit.add(p[0]) if len(p) == 1 else self.prg.translation_unit.add(p[1])
+        #self.prg.append(p[0]) if len(p) == 1 else self.prg.append(p[1])
 
     @_('function_definition', 'declaration')
     def external_declaration(self, p):
@@ -593,8 +584,8 @@ if __name__ == '__main__':
         lex = CClexer.CLexer()
         parser = CCParser()
         result = parser.parse(lex.tokenize(prg))
+
         print(f'CCParser {fn[i]}: {result}')
-        print(f'{parser.print()}')
-        #print(parser.dumps())
         parser.dump("CCParser.json")
-        parser.generate_ir()
+        parser.prg.print()
+
