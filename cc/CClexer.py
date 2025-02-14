@@ -12,7 +12,7 @@ class PPLexer(Lexer):  # The lexer for the preprocessor
     DEFINE = r'[#]define'
     INCLUDE = r'[#]include'
     ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
-    EXPR = r'(\d+)|([(].*[)])'  # Either a number, or expression such as "(03<<3)"
+    EXPR = r'(\d+\.?\d*)|([(].*[)])'  # Either a number, or expression such as "(03<<3)"
     STRING_LITERAL = r'"[^"]*"'
 
     ignore = ' \t'
@@ -85,9 +85,9 @@ class CLexer(Lexer):
        # as ID CONSTANT (which is grammatically wrong), but should be scanned as ID "-" CONSTANT
        # A declaration with intializations, such as "int peeksym -1;"  should be scanned as
        # INT ID "-" CONSTANT (value = 1), not as INT ID CONSTANT (value = -1)
+       r'(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
        r'0[0-7]+',  # Octal
        r'\d+',  # Decimal
-       r'(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
        r'\'\\.\'', # ESCAPECHR
         r'\'.\\?.?\'',  # SINGLECHR
         r'\'\\[0-7]{1,3}\''  # ESCAPEOCT
@@ -102,7 +102,10 @@ class CLexer(Lexer):
                 else:
                     t.value = int(t.value[1:], 8)
             else:
-                t.value = int(t.value)
+                if '.' in t.value:
+                    t.value = float(t.value)
+                else:
+                    t.value = int(t.value)
         return t
 
     ID = r'[a-zA-Z_][a-zA-Z0-9_]*'

@@ -1,4 +1,9 @@
-add(a)
+int abc1;
+
+int *abc2;
+int **abc3;
+
+int add(a)
 int a;
 {
   int b 2;

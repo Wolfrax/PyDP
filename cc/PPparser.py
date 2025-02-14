@@ -1,13 +1,42 @@
 from sly import Parser
 import CClexer
-
-Defines = {}
-Includes = {}
+import pprint
 
 class PPparser(Parser):
     start = 'translation_unit'
     tokens = CClexer.PPLexer.tokens
-    debugfile = 'PPparser.out'
+    #debugfile = 'PPparser.out'
+
+    def __init__(self):
+        self.defines = []
+        self.includes = {}
+        self.result = None
+        self.lex = CClexer.PPLexer()
+
+    def visited(self, k):
+        return self.includes[k]['_visited']
+
+    def set_visited(self, k, val=True):
+        self.includes[k]['_visited'] = val
+
+    def preprocess(self, fn, wd=''):
+        with open(wd+fn, 'r') as f:
+            print(f"Preprocessing {fn}")
+            self.result = self.parse(self.lex.tokenize(f.read()))
+            self.restart()
+
+        for k in self.includes:
+            with open(wd+k, 'r') as f:
+                print(f"Preprocessing {k}")
+                if self.visited(k): continue
+                self.result = self.parse(self.lex.tokenize(f.read()))
+                self.restart()
+                self.set_visited(k)
+
+        for k in self.includes:
+            self.set_visited(k, False)
+
+        return self.result
 
     @_('list_of_tokens')
     def translation_unit(self, p): pass
@@ -20,42 +49,34 @@ class PPparser(Parser):
 
     @_('DEFINE ID EXPR')
     def define(self, p):
-        if not p.ID in Defines:
-            # NB EXPR can be a constant integer number, or an expression such as "(03<<3)"
-            Defines[p.ID] = {'lineno': p.lineno, 'expr': p.EXPR, 'nr': int(p.EXPR) if p.EXPR.isnumeric() else None}
+        if p.EXPR.isnumeric():
+            val = int(p.EXPR)
+        else:
+            try:
+                val = float(p.EXPR)
+            except ValueError:
+                val = None
+
+        # NB EXPR can be a constant integer number, or an expression such as "(03<<3)", then val is None
+        self.defines.append([{'ctx': ['const'], '_lineno': p.lineno, 'name':p.ID, 'expression': p.EXPR, 'value': val}])
 
     @_('INCLUDE STRING_LITERAL')
     def include(self, p):
-        if not p.STRING_LITERAL in Includes:
-            Includes[p.STRING_LITERAL.strip('"')] = {'lineno': p.lineno, 'flag': False}
-
+        if not p.STRING_LITERAL in self.includes:
+            self.includes[p.STRING_LITERAL.strip('"')] = {'_lineno': p.lineno, '_visited': False}
 
 if __name__ == '__main__':
     dir = './src/'
     #fn = ['c0_tot.c', 'c1_tot.c', 'c2_tot.c', 'cvopt.c']
     fn = ['c00.c']
-    ind = 0
 
     pp_parser = PPparser()
-    pp_lex = CClexer.PPLexer()
+    for i in range(len(fn)):
+        print(pp_parser.preprocess(fn[i], wd=dir))
 
-    for i in range(ind, len(fn)):
-        print(f'Parsing file {fn[i]}')
-
-        with open(dir + fn[i], 'r') as f:
-            result = pp_parser.parse(pp_lex.tokenize(f.read()))
-            pp_parser.restart()
-
-    for k, v in Includes.items():
-        print(f'{k}')
-
-        with open(dir + k, 'r') as f:
-            if Includes[k]['flag']: continue
-            result = pp_parser.parse(pp_lex.tokenize(f.read()))
-            pp_parser.restart()
-            Includes[k]['flag'] = True
-
-    print(Includes)
-    print(Defines)
+    print("Includes")
+    pprint.pp(pp_parser.includes)
+    print("Defines")
+    pprint.pp(pp_parser.defines)
 
 
