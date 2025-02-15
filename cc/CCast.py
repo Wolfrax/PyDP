@@ -2,7 +2,7 @@
 
 import pprint
 import json
-from CCconf import CCError
+from CC import CCError
 import CCconf
 
 #from llvmlite.binding import StorageClass

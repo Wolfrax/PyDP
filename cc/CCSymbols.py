@@ -1,5 +1,5 @@
 import pprint
-from CCconf import CCError
+from CC import CCError
 
 class CCSymbols:
     def __init__(self, memory):

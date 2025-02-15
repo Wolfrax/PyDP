@@ -3,13 +3,6 @@ import PPparser
 import CCSymbols
 import CCinterpreter
 
-class CCError(Exception):
-    def __init__(self, err):
-        self.err = err
-
-    def __str__(self):
-        return repr(self.err)
-
 # This is the declaration object interfacing the AST and the Symbol tables
 class CCDecl:
     def __init__(self, decl):
