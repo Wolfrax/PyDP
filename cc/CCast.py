@@ -2,7 +2,6 @@
 
 import pprint
 import json
-from CCconf import CCError
 import CCconf
 
 #from llvmlite.binding import StorageClass
@@ -292,13 +291,18 @@ class DirectDeclarator(Node):
         ctx = self._ctx
 
         if ctx == 'id':
-            return {'ctx': [ctx], 'name': self.id, '_lineno': self._lineno}
+            # This is where we create a decaration object that is cascaded upwards with added attriutes
+            # The object is used as an interface to the symbol tables.
+            CCDecl = CCconf.CCDecl().setattrs(ctx=[ctx], name=self.id, lineno=self._ctx)
+            return CCDecl
 
         if ctx == 'function':
             attr = self.direct_declarator.decl()
-            attr['ctx'] += [ctx]
+            attr.ctx += [ctx]
             parameters = self.identifier_list.get() if self.identifier_list is not None else []
-            return attr | {'parameters': parameters} | {'initializer': []}
+            attr.parameters = parameters
+            attr.initializer =[]
+            return attr
 
         if ctx == 'declarator':
             attr = self.declarator.decl()

@@ -3,6 +3,13 @@ import argparse
 import os
 import CCconf
 
+class CCError(Exception):
+    def __init__(self, err):
+        self.err = err
+
+    def __str__(self):
+        return repr(self.err)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="file to compile", default='')

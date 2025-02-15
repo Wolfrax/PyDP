@@ -3,17 +3,15 @@ import PPparser
 import CCSymbols
 import CCinterpreter
 
-class CCError(Exception):
-    def __init__(self, err):
-        self.err = err
-
-    def __str__(self):
-        return repr(self.err)
-
 # This is the declaration object interfacing the AST and the Symbol tables
 class CCDecl:
-    def __init__(self, decl):
-        self.decl = decl
+    def __init__(self):
+        pass
+
+    def setattrs(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
 
 class CC:
     def __init__(self, fn, verbose, wd, interpret):
