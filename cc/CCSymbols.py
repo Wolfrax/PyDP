@@ -38,10 +38,10 @@ class CCSymbols:
                 self.variables[symbol['name']] = symbol
 
                 # For now, assume int => need to consider char, float, double
-                if 'initializer' in symbol:
-                    mempos = self.memory.write(symbol['initializer'])
-                else:
-                    mempos = self.memory.write(0)
+                #if 'initializer' in symbol:
+                #    mempos = self.memory.write(symbol['initializer'])
+                #else:
+                #    mempos = self.memory.write(0)
 
             elif ctx == 'function':
                 if symbol['name'] in self.functions:
