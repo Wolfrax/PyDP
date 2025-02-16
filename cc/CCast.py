@@ -3,6 +3,7 @@
 import pprint
 import json
 import CCconf
+from CC import CCError
 
 #from llvmlite.binding import StorageClass
 
@@ -168,17 +169,16 @@ class Declaration(Node):
         self.init_declarator_list = initializer
 
     def decl(self):
-        decl = []
+        declaration = []
         for declarator in self.init_declarator_list:
-            attr = declarator.decl()
-            specifiers_attr = self.declaration_specifiers.decl()
-            if 'ctx' in specifiers_attr:
-                attr['ctx'] += [specifiers_attr['ctx']]
+            decl = declarator.decl()
+            specifiers_decl = self.declaration_specifiers.decl()
+            for key, value in specifiers_decl[0].items():
+                attr_item = {key: value}
+                decl = decl.setattrs(**attr_item)
+            declaration.append(decl)
 
-            attr = specifiers_attr[0] | attr  # NB order of merging dict!
-            decl.append(attr)
-
-        return decl
+        return declaration
 
 class Declarator(Node):
     def __init__(self, lineno, direct_declarator, pointer):
@@ -233,23 +233,23 @@ class Declarator(Node):
                'type': 'int'}
         """
 
-        attr = self.direct_declarator.decl()
+        decl = self.direct_declarator.decl()
 
-        if attr['ctx'][-1] == 'function':  # We have a declaration of a function, it can return simple type or a pointer
+        if decl.ctx[-1] == 'function': # We have a declaration of a function, it can return simple type or a pointer
             return_type = self.pointer.get() if self.pointer is not None else []
-            if 'pointer' not in attr:
-                attr['pointer'] = []
+            if not decl.hasattr('pointer'):
+                decl.setattrs(pointer=[])
         else:
             return_type = None
-            if 'pointer' in attr:
-                attr['pointer'] = attr['pointer'] + self.pointer.get() if self.pointer is not None else attr['pointer']
+            if decl.hasattr('pointer'):
+                decl.setattrs(pointer=decl.pointer + self.pointer.get() if self.pointer is not None else decl.pointer)
             else:
-                attr['pointer'] = self.pointer.get() if self.pointer is not None else []
+                decl.setattrs(pointer=self.pointer.get() if self.pointer is not None else [])
 
         if return_type is not None:
-            return attr | {'return_type': return_type}
+            return decl.setattrs(return_type=return_type)
         else:
-            return attr
+            return decl
 
 
 class DeclarationSpecifiers(Node):
@@ -259,8 +259,8 @@ class DeclarationSpecifiers(Node):
         self.type = TypeSpecifier(lineno, 'int', 'INT') if type is None else type
 
     def decl(self):
-        attr = self.type.decl()
-        return [attr | {'storage_class': self.storage_class}]
+        decl = self.type.decl()
+        return [decl.setattrs(storage_class=self.storage_class)]
 
 class InitDeclarator(Node):
     def __init__(self, lineno, declarator, initializer):
@@ -291,34 +291,27 @@ class DirectDeclarator(Node):
         ctx = self._ctx
 
         if ctx == 'id':
-            # This is where we create a decaration object that is cascaded upwards with added attriutes
+            # This is where we create a declaration object that is cascaded upwards with added attriutes
             # The object is used as an interface to the symbol tables.
-            CCDecl = CCconf.CCDecl().setattrs(ctx=[ctx], name=self.id, lineno=self._ctx)
-            return CCDecl
+            return CCconf.CCDecl().setattrs(ctx=[ctx], name=self.id, lineno=self._lineno)
 
         if ctx == 'function':
-            attr = self.direct_declarator.decl()
-            attr.ctx += [ctx]
+            decl = self.direct_declarator.decl()
             parameters = self.identifier_list.get() if self.identifier_list is not None else []
-            attr.parameters = parameters
-            attr.initializer =[]
-            return attr
+            return decl.settattrs(ctx = decl.ctx + [ctx], parmeters=parameters, initializer=[])
 
         if ctx == 'declarator':
-            attr = self.declarator.decl()
-            attr['ctx'] += [ctx]
-            return attr | {'initializer': []}
+            decl = self.declarator.decl()
+            return decl.settattrs(ctx = decl.ctx + [ctx], intializer=[])
 
         if self._ctx == 'array':
-            attr = self.direct_declarator.decl()
-            attr['ctx'] += [ctx]
+            decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
-                if 'subscript' in attr:
-                    attr['subscript'].append(expr)
-                else:
-                    attr['subscript'] = [expr]
-            return attr
+                subscript = decl.subscript + [expr] if decl.hasattr('subscript') else [expr]
+                return decl.setattrs(ctx=decl.ctx + [ctx], subscript=subscript)
+            else:
+                return decl.setattrs(ctx=decl.ctx + [ctx])
 
 class StructSpecifier(Node):
     def __init__(self, lineno, id=None, struct_declaration_list=None):
@@ -335,7 +328,7 @@ class StructSpecifier(Node):
                     decl_list.append(elem)
 
         id = '' if self.id is None else self.id
-        return {'struct tag': id, 'declaration_list': decl_list}
+        return CCconf.CCDecl().setattrs(struct_tag=id, declaration_list=decl_list)
 
 class StructDeclaration(Node):
     def __init__(self, lineno, specifier_qualifiers, declarators):
@@ -347,15 +340,15 @@ class StructDeclaration(Node):
         """
         Note that self.specifier_qualifiers is a list, but have only one element.
         This means that we retrieve the list through get() and use the only element (index: 0), then calls its decl()
-        which returns a dict.
+        which returns a CCDecl instance.
 
         self.declarators can include more than one element, so we need to loop this as a list, calling
-        each elements decl(). The return value is (a dict) is added to decl-list.
+        each elements decl(). The return value is added to decl-list.
 
         At then end we loop the decl-list and merge each element with the spec-dictionary
 
         An example of a declaration causing self.declarators to have more than one element is:
-            struct a { int a, b; };
+            struct a { int a, b };
         """
 
         decls = []
@@ -365,7 +358,10 @@ class StructDeclaration(Node):
             decls.append(d.decl())
 
         for i in range(len(decls)):
-            decls[i] = decls[i] | spec
+            dict_items = decls[i].__dict__ | spec.__dict__
+            for key, value in dict_items.items():
+                attr = {key: value}
+                decls[i] = decls[i].setattrs(**attr)
 
         return decls
 
@@ -415,9 +411,14 @@ class TypeSpecifier(Node):
 
     def decl(self):
         if self._ctx == 'struct_specifier':
-            return {'ctx': [self._ctx]} | self.type_name.decl()
+            decl = CCconf.CCDecl().setattrs(ctx=[self._ctx])
+            for key, value in self.type_name.decl().items():
+                attr = {key: value}
+                decl.setattrs(**attr)
 
-        return {'type': self.type_name}
+            return  decl
+
+        return CCconf.CCDecl().setattrs(type=self.type_name)
 
 class TypeName(Node):
     def __init__(self, lineno, specifier_qualifier_list, pointer=None):
@@ -573,8 +574,7 @@ class FunctionDefinition(Node):
                         ind = parameters.index(par)
                         parameters[ind] = elem
 
-        attr['parameters'] = parameters
-        return [attr]
+        return CCconf.CCDecl().setattrs(parameters=[parameters])
 
     def stmt(self):
         return self.compound_statement.stmt()

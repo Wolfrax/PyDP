@@ -13,6 +13,12 @@ class CCDecl:
             setattr(self, k, v)
         return self
 
+    def hasattr(self, attr):
+        return hasattr(self, attr)
+
+    def items(self):
+        return self.__dict__.items()
+
 class CC:
     def __init__(self, fn, verbose, wd, interpret):
         self.file = fn
