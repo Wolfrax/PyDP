@@ -35,8 +35,8 @@ class CCparser(Parser):
         self.lex = CClexer.CLexer()
 
 
-    def compile(self, fn, wd=''):
-        with open(wd + fn, 'r') as f:
+    def compile(self, fn):
+        with open(fn, 'r') as f:
             print(f"Compiling {fn}")
             self.result = self.parse(self.lex.tokenize(f.read()))
             self.restart()

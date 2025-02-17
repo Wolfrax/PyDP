@@ -11,55 +11,69 @@ class CCSymbols:
         self.memory = memory
 
     def add(self, symbols):
+        if not isinstance(symbols, list):
+            symbols = [symbols]
+
         for symbol in symbols:
-            ctx = symbol['ctx'][-1]
+            ctx = symbol.ctx[-1]
 
             if ctx == 'const':
-                if symbol['name'] in self.constants:
-                    raise CCError(f"Duplicate constant name: {symbol['name'] ({symbol['_lineno']})}")
+                if symbol.name in self.constants:
+                    raise CCError(f"Duplicate constant name: {symbol.name ({symbol.lineno})}")
 
                 # const will not occupy any memory
-                self.constants[symbol['name']] = symbol
+                self.constants[symbol.name] = symbol
             elif ctx == 'struct_specifier':
-                if symbol['struct tag'] != '':
-                    if symbol['struct tag'] in self.structures:
-                        raise CCError(f"Duplicate struct tag: {symbol['struct tag']} ({symbol['_lineno']})")
+                if symbol.struct_tag != '':
+                    """
+                    Note that a symbol can be composed. For example:
+                    int a[10] => ctx is ['id', 'array'], thus the symbol is an identifier and array
+                    
+                    Another example is
+                    struct a {int b; }; => ctx is ['struct_specifier'] only, map this to structures symbolt table.
+                    struct a c[]; => ctx is ['id', 'array', 'struct_specifier], thus the symbol is an identifier 
+                                     and array and a struct_specifier. Map this to variables symbol table.
+                                     Note that 'id' is always first in ctx.
+                    """
+                    if symbol.ctx[0] == 'id':
+                        self.variables[symbol.name] = symbol
+                    else:
+                        if symbol.struct_tag in self.structures:
+                            raise CCError(f"Duplicate struct tag: {symbol.struct_tag} ({symbol.lineno})")
 
-                    self.structures[symbol['struct tag']] = symbol
+                        self.structures[symbol.struct_tag] = symbol
                 else:  # No struct tag, treat members as unions.
-                    for decl in symbol['declaration_list']:
-                        if decl['name'] in self.unions:
-                            raise CCError(f"Duplicate union member name: {decl['name']} ({symbol['_lineno']})")
+                    for decl in symbol.declaration_list:
+                        if decl.name in self.unions:
+                            raise CCError(f"Duplicate union member name: {decl.name} ({symbol.lineno})")
 
-                        self.unions[decl['name']] = decl
+                        self.unions[decl.name] = decl
             elif ctx == 'id':
                 # Note that no check is made of duplicate names, an identifier might be declared
                 # several times. the last occurrence will overwrite previous entries in symbol table
-                self.variables[symbol['name']] = symbol
+                self.variables[symbol.name] = symbol
 
                 # For now, assume int => need to consider char, float, double
-                #if 'initializer' in symbol:
-                #    mempos = self.memory.write(symbol['initializer'])
-                #else:
-                #    mempos = self.memory.write(0)
+                #if symbol.hasattr('initializer'):
+                #    mempos = self.memory.write(symbol.initializer)
 
             elif ctx == 'function':
-                if symbol['name'] in self.functions:
-                    raise CCError(f"Duplicate function name: {symbol['name']} ({symbol['_lineno']})")
+                if symbol.name in self.functions:
+                    raise CCError(f"Duplicate function name: {symbol.name} ({symbol.lineno})")
 
-                self.functions[symbol['name']] = symbol
+                self.functions[symbol.name] = symbol
 
     def get(self, name):
         if name in self.constants:
-            return self.constants[name]['value']
+            return self.constants[name].value
         elif name in self.variables:
-            return self.variables[name]['value']
+            return self.variables[name].value
         elif name in self.structures:
-            return self.structures[name]['value']
+            return self.structures[name].value
         elif name in self.unions:
-            return self.unions[name]['value']
+            return self.unions[name].value
         elif name in self.functions:
-            return self.functions[name]['value']
+            return self.functions[name].value
         else:
             return None
 
