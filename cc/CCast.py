@@ -38,7 +38,8 @@ class PrimaryExpression(Node):
         super().__init__(lineno)
 
         if constant is None and expression is None:
-            raise CCError('PrimaryExpression: constant and expression cannot be None')
+            raise CCError(f'{self.__class__.__name__}: '
+                          f'PrimaryExpression: constant and expression cannot be None ({self._lineno})')
 
         if constant is not None:
             if isinstance(constant, str):
@@ -51,7 +52,8 @@ class PrimaryExpression(Node):
             elif isinstance(constant, float):
                 self._ctx = 'float'
             else:
-                raise CCError(f"PrimaryExpression: unsupported constant type: {constant}")
+                raise CCError(f'{self.__class__.__name__}: '
+                              f'PrimaryExpression: unsupported constant type: {constant} ({self._lineno})')
         else:
             self._ctx = 'expr'
 
@@ -77,7 +79,8 @@ class PostfixExpression(Node):
         if op in self.__ctx:
             self._ctx = self.__ctx[op]
         else:
-            raise CCError("Postfix expression: Unknown operator '%s'" % op)
+            raise CCError(f'{self.__class__.__name__}: '
+                          f'Postfix expression: Unknown operator {op} ({self._lineno})')
 
         self.postfix_expression = postfix_expression  # Should be PrimaryExpression: id
         self.expression = expression  # Used in subscript, such as a[b+1], expression == b+1
@@ -132,7 +135,7 @@ class BinOpExpression(Node):
                 else:
                     left = CCconf.compiler.symbols.get(left)
             else:
-                raise CCError(f'{self.__class__.__name__}: not compatible types')
+                raise CCError(f'{self.__class__.__name__}: not compatible types ({self._lineno})')
 
         if self.op == '+':
             return left + right
@@ -149,7 +152,7 @@ class BinOpExpression(Node):
         elif self.op == '|':
             return left | right
         else:
-            raise CCError(f'{self.__class__.__name__}: unsupported operator')
+            raise CCError(f'{self.__class__.__name__}: unsupported operator ({self._lineno})')
 
     def stmt(self):
         return f"{self.op} {self.expr_l} {self.expr_r}"
@@ -237,14 +240,10 @@ class Declarator(Node):
 
         if decl.ctx[-1] == 'function': # We have a declaration of a function, it can return simple type or a pointer
             return_type = self.pointer.get() if self.pointer is not None else []
-            if not decl.hasattr('pointer'):
-                decl.setattrs(pointer=[])
+            decl.setattrs(pointer=[])
         else:
             return_type = None
-            if decl.hasattr('pointer'):
-                decl.setattrs(pointer=decl.pointer + self.pointer.get() if self.pointer is not None else decl.pointer)
-            else:
-                decl.setattrs(pointer=self.pointer.get() if self.pointer is not None else [])
+            decl.setattrs(pointer=self.pointer.get() if self.pointer is not None else [])
 
         if return_type is not None:
             return decl.setattrs(return_type=return_type)
@@ -269,9 +268,10 @@ class InitDeclarator(Node):
         self.initializer = initializer
 
     def decl(self):
-        attr = self.declarator.decl()
-        attr['initializer'] = self.initializer.decl() if self.initializer is not None else attr['initializer']
-        return attr
+        decl = self.declarator.decl()
+        if self.initializer is not None:
+            decl.setattrs(initializer=self.initializer.decl())
+        return decl
 
 
 class DirectDeclarator(Node):
@@ -298,20 +298,20 @@ class DirectDeclarator(Node):
         if ctx == 'function':
             decl = self.direct_declarator.decl()
             parameters = self.identifier_list.get() if self.identifier_list is not None else []
-            return decl.settattrs(ctx = decl.ctx + [ctx], parmeters=parameters, initializer=[])
+            return decl.setattrs(ctx=[ctx], parameters=parameters, initializer=[])
 
         if ctx == 'declarator':
             decl = self.declarator.decl()
-            return decl.settattrs(ctx = decl.ctx + [ctx], intializer=[])
+            return decl.settattrs(ctx=[ctx], intializer=[])
 
-        if self._ctx == 'array':
+        if ctx == 'array':
             decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
                 subscript = decl.subscript + [expr] if decl.hasattr('subscript') else [expr]
-                return decl.setattrs(ctx=decl.ctx + [ctx], subscript=subscript)
+                return decl.setattrs(ctx=[ctx], subscript=subscript)
             else:
-                return decl.setattrs(ctx=decl.ctx + [ctx])
+                return decl.setattrs(ctx=[ctx])
 
 class StructSpecifier(Node):
     def __init__(self, lineno, id=None, struct_declaration_list=None):
@@ -548,33 +548,57 @@ class FunctionDefinition(Node):
             char *y[];   <-- located in self.declaration_list, type is pointer to array of characters
             float z;     <-- located in self.declaration_list
             
-            x is not declared, hence type is assumed to be int, x is NOT in self.declaration_list but in self.declarator           
+            x is not declared, hence type is assumed to be int, x is NOT in self.declaration_list but in self.declarator
+
+        Below is somewhat :-) complicated, perhaps overly...
+        - First we get the declarator declaration-object (decl variable)
+        - Then we loop the parameters in decl, these are the formal parameters (x, y, z above), and add them to a
+          temporary list (parameters). For each parameter, we create a new declaration object (decl_obj) and
+          set the attributes (par_dict -> **par_dict)
+        - Then we loop declared parameters (y, z above) and add them to declared_parameters list, if there are any.
+          For each element in declaration_list, we get the declaration (decl_pars.decl()).
+        - Now we have 2 lists that we compare by the name of parameters. The parameter list (formal parameters) should
+          always be >= then declared_parameters. If there is a match by name (elem.name == par.name), we copy
+          elem into parameters list (parameters[ind] = elem). Thus, the list are merged, and parmeters have
+          all information.
+        - As a final step, we update the decl-object with the parameters list. However, the attribute 'parameters'
+          might already exist in decl object, so we remove this first (decl.delattr('parameters')).
+          delattr implementation will first check if that attribute exists, then remove it.
+          After that we set attributes in decl object by calling setattr, noting that the implementation of
+          setattr will add lists together if an attribute of list type exists in decl. Therefore, we need
+          to remove the parameters-attribute first. We also add the return_type attribute and return decl-object.
+
         """
 
-        attr = self.declarator.decl()
+        decl = self.declarator.decl()
 
         # Create a list of parameters with standard/implicit type.
         parameters = []
-        for pname in attr['parameters']:
-            parameters.append({'type': 'int',
-                                   'storage_class': 'auto',
-                                   'ctx': ['id'],
-                                   'name': pname,
-                                   'pointer': []})
+        for pname in decl.parameters:
+            decl_obj = CCconf.CCDecl()
+            par_dict = {'type': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}
+            parameters.append(decl_obj.setattrs(**par_dict))
 
+        # Now loop through all declared parameters, if any
         declared_parameters = []
         if self.declaration_list is not None:
             for decl_pars in self.declaration_list:
                 declared_parameters.append(decl_pars.decl())
 
+        if len(declared_parameters) > len(parameters):
+            raise CCError(f'{self.__class__.__name__}: '
+                          f'declared_parameters={len(declared_parameters)} > parameters={len(parameters)} '
+                          f'({self._lineno})')
+        # Merge declared parameters into parameters list
         for par in parameters:
             for row in declared_parameters:
                 for elem in row:
-                    if elem['name'] == par['name']:
+                    if elem.name == par.name:
                         ind = parameters.index(par)
                         parameters[ind] = elem
 
-        return CCconf.CCDecl().setattrs(parameters=[parameters])
+        decl.delattr('parameters')
+        return decl.setattrs(parameters=parameters, return_type=self.declaration_specifiers.decl())
 
     def stmt(self):
         return self.compound_statement.stmt()

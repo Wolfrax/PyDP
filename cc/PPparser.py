@@ -20,14 +20,14 @@ class PPparser(Parser):
     def set_visited(self, k, val=True):
         self.includes[k]['_visited'] = val
 
-    def preprocess(self, fn, wd=''):
-        with open(wd+fn, 'r') as f:
+    def preprocess(self, fn):
+        with open(fn, 'r') as f:
             print(f"Preprocessing {fn}")
             self.result = self.parse(self.lex.tokenize(f.read()))
             self.restart()
 
         for k in self.includes:
-            with open(wd+k, 'r') as f:
+            with open(k, 'r') as f:
                 print(f"Preprocessing {k}")
                 if self.visited(k): continue
                 self.result = self.parse(self.lex.tokenize(f.read()))

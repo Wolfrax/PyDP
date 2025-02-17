@@ -11,6 +11,9 @@ class CCSymbols:
         self.memory = memory
 
     def add(self, symbols):
+        if not isinstance(symbols, list):
+            symbols = [symbols]
+
         for symbol in symbols:
             ctx = symbol.ctx[-1]
 
@@ -22,10 +25,23 @@ class CCSymbols:
                 self.constants[symbol.name] = symbol
             elif ctx == 'struct_specifier':
                 if symbol.struct_tag != '':
-                    if symbol.struct_tag in self.structures:
-                        raise CCError(f"Duplicate struct tag: {symbol.struct_tag} ({symbol.lineno})")
+                    """
+                    Note that a symbol can be composed. For example:
+                    int a[10] => ctx is ['id', 'array'], thus the symbol is an identifier and array
+                    
+                    Another example is
+                    struct a {int b; }; => ctx is ['struct_specifier'] only, map this to structures symbolt table.
+                    struct a c[]; => ctx is ['id', 'array', 'struct_specifier], thus the symbol is an identifier 
+                                     and array and a struct_specifier. Map this to variables symbol table.
+                                     Note that 'id' is always first in ctx.
+                    """
+                    if symbol.ctx[0] == 'id':
+                        self.variables[symbol.name] = symbol
+                    else:
+                        if symbol.struct_tag in self.structures:
+                            raise CCError(f"Duplicate struct tag: {symbol.struct_tag} ({symbol.lineno})")
 
-                    self.structures[symbol.struct_tag] = symbol
+                        self.structures[symbol.struct_tag] = symbol
                 else:  # No struct tag, treat members as unions.
                     for decl in symbol.declaration_list:
                         if decl.name in self.unions:
@@ -38,8 +54,8 @@ class CCSymbols:
                 self.variables[symbol.name] = symbol
 
                 # For now, assume int => need to consider char, float, double
-                if symbol.hasattr('initializer'):
-                    mempos = self.memory.write(symbol.initializer)
+                #if symbol.hasattr('initializer'):
+                #    mempos = self.memory.write(symbol.initializer)
 
             elif ctx == 'function':
                 if symbol.name in self.functions:
