@@ -8,13 +8,9 @@ class CCDecl:
     def __init__(self):
         pass
 
-    def setattrs(self, **kwargs):
+    def setattr(self, **kwargs):
         for key, value in kwargs.items():
-            if self.hasattr(key) and isinstance(value, list):
-                new_value = getattr(self, key) + value  # merge only if lists
-                setattr(self, key, new_value)
-            else:
-                setattr(self, key, value)
+            setattr(self, key, value)
         return self
 
     def hasattr(self, attr):

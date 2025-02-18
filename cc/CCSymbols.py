@@ -50,7 +50,7 @@ class CCSymbols:
                         self.unions[decl.name] = decl
             elif ctx == 'id':
                 # Note that no check is made of duplicate names, an identifier might be declared
-                # several times. the last occurrence will overwrite previous entries in symbol table
+                # several times. The last occurrence will overwrite previous entries in symbol table
                 self.variables[symbol.name] = symbol
 
                 # For now, assume int => need to consider char, float, double
@@ -62,6 +62,11 @@ class CCSymbols:
                     raise CCError(f"Duplicate function name: {symbol.name} ({symbol.lineno})")
 
                 self.functions[symbol.name] = symbol
+            elif ctx == 'array':
+                self.variables[symbol.name] = symbol
+            else:
+                raise CCError(f"Unknown ctx: {ctx} ({symbol.lineno})")
+
 
     def get(self, name):
         if name in self.constants:

@@ -166,6 +166,11 @@ class ConditionalExpression(Node):
         self.expr3 = expr3
 
 class Declaration(Node):
+    """
+    Example: char cvtab[4][4];
+    self.declaration_specifiers will have information about storage_class (auto) and type_name (char)
+    self.init_declarator_list will information about name (cvtab), and subscripts ([4][4])
+    """
     def __init__(self, lineno, decl_specifier, initializer):
         super().__init__(lineno)
         self.declaration_specifiers = decl_specifier
@@ -173,13 +178,14 @@ class Declaration(Node):
 
     def decl(self):
         declaration = []
+        specifiers_dict = self.declaration_specifiers.decl().__dict__
+
         for declarator in self.init_declarator_list:
-            decl = declarator.decl()
-            specifiers_decl = self.declaration_specifiers.decl()
-            for key, value in specifiers_decl[0].items():
-                attr_item = {key: value}
-                decl = decl.setattrs(**attr_item)
-            declaration.append(decl)
+            decl = specifiers_dict | declarator.decl().__dict__
+            if 'ctx' in specifiers_dict:
+                decl['ctx'] += specifiers_dict['ctx']
+            decl_obj = CCconf.CCDecl().setattr(**decl)
+            declaration.append(decl_obj)
 
         return declaration
 
@@ -240,13 +246,13 @@ class Declarator(Node):
 
         if decl.ctx[-1] == 'function': # We have a declaration of a function, it can return simple type or a pointer
             return_type = self.pointer.get() if self.pointer is not None else []
-            decl.setattrs(pointer=[])
+            decl.setattr(pointer=[])
         else:
             return_type = None
-            decl.setattrs(pointer=self.pointer.get() if self.pointer is not None else [])
+            decl.setattr(pointer=self.pointer.get() if self.pointer is not None else [])
 
         if return_type is not None:
-            return decl.setattrs(return_type=return_type)
+            return decl.setattr(return_type=return_type)
         else:
             return decl
 
@@ -259,7 +265,7 @@ class DeclarationSpecifiers(Node):
 
     def decl(self):
         decl = self.type.decl()
-        return [decl.setattrs(storage_class=self.storage_class)]
+        return decl.setattr(storage_class=self.storage_class)
 
 class InitDeclarator(Node):
     def __init__(self, lineno, declarator, initializer):
@@ -270,7 +276,7 @@ class InitDeclarator(Node):
     def decl(self):
         decl = self.declarator.decl()
         if self.initializer is not None:
-            decl.setattrs(initializer=self.initializer.decl())
+            decl.setattr(initializer=self.initializer.decl())
         return decl
 
 
@@ -291,27 +297,25 @@ class DirectDeclarator(Node):
         ctx = self._ctx
 
         if ctx == 'id':
-            # This is where we create a declaration object that is cascaded upwards with added attriutes
-            # The object is used as an interface to the symbol tables.
-            return CCconf.CCDecl().setattrs(ctx=[ctx], name=self.id, lineno=self._lineno)
+            return CCconf.CCDecl().setattr(ctx=[ctx], name=self.id, lineno=self._lineno)
 
         if ctx == 'function':
             decl = self.direct_declarator.decl()
             parameters = self.identifier_list.get() if self.identifier_list is not None else []
-            return decl.setattrs(ctx=[ctx], parameters=parameters, initializer=[])
+            return decl.setattr(ctx=decl.ctx + [ctx], parameters=parameters, initializer=[])
 
         if ctx == 'declarator':
             decl = self.declarator.decl()
-            return decl.settattrs(ctx=[ctx], intializer=[])
+            return decl.settattrs(ctx=decl.ctx + [ctx], intializer=[])
 
         if ctx == 'array':
             decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
                 subscript = decl.subscript + [expr] if decl.hasattr('subscript') else [expr]
-                return decl.setattrs(ctx=[ctx], subscript=subscript)
+                return decl.setattr(ctx=decl.ctx + [ctx], subscript=subscript)
             else:
-                return decl.setattrs(ctx=[ctx])
+                return decl.setattr(ctx=decl.ctx + [ctx])
 
 class StructSpecifier(Node):
     def __init__(self, lineno, id=None, struct_declaration_list=None):
@@ -328,7 +332,7 @@ class StructSpecifier(Node):
                     decl_list.append(elem)
 
         id = '' if self.id is None else self.id
-        return CCconf.CCDecl().setattrs(struct_tag=id, declaration_list=decl_list)
+        return CCconf.CCDecl().setattr(struct_tag=id, declaration_list=decl_list)
 
 class StructDeclaration(Node):
     def __init__(self, lineno, specifier_qualifiers, declarators):
@@ -358,18 +362,9 @@ class StructDeclaration(Node):
             decls.append(d.decl())
 
         for i in range(len(decls)):
-            dict_items = decls[i].__dict__ | spec.__dict__
-            for key, value in dict_items.items():
-                attr = {key: value}
-                decls[i] = decls[i].setattrs(**attr)
+            decls[i] = decls[i].setattr(**(decls[i].__dict__ | spec.__dict__))
 
         return decls
-
-class ParameterDeclaration(Node):
-    def __init__(self, lineno, declaration_specifiers, declarator=None):
-        super().__init__(lineno)
-        self.declaration_specifiers = declaration_specifiers
-        self.declarator = declarator
 
 class Initializer(Node):
     def __init__(self, lineno, constant=None, constant_expression_list=None):
@@ -398,11 +393,6 @@ class Pointer(Node):
     def eval(self):
         return self.pointer
 
-class ParameterTypeList(Node):
-    def __init__(self, lineno, parameter_list):
-        super().__init__(lineno)
-        self.parameter_list = parameter_list
-
 class TypeSpecifier(Node):
     def __init__(self, lineno, type_name, type):
         super().__init__(lineno)
@@ -411,27 +401,15 @@ class TypeSpecifier(Node):
 
     def decl(self):
         if self._ctx == 'struct_specifier':
-            decl = CCconf.CCDecl().setattrs(ctx=[self._ctx])
-            for key, value in self.type_name.decl().items():
-                attr = {key: value}
-                decl.setattrs(**attr)
+            return CCconf.CCDecl().setattr(ctx=[self._ctx], **self.type_name.decl().__dict__)
 
-            return  decl
-
-        return CCconf.CCDecl().setattrs(type=self.type_name)
+        return CCconf.CCDecl().setattr(type_name=self.type_name)
 
 class TypeName(Node):
     def __init__(self, lineno, specifier_qualifier_list, pointer=None):
         super().__init__(lineno)
         self.specifier_qualifier_list = specifier_qualifier_list
         self.pointer = pointer
-
-"""
-class Statement(Node):
-    def __init__(self, lineno, stmt=None):
-        super().__init__(lineno)
-        self.stmt = stmt
-"""
 
 class LabeledStatement(Node):
     def __init__(self, lineno, label, constant_expression, statement):
@@ -561,13 +539,7 @@ class FunctionDefinition(Node):
           always be >= then declared_parameters. If there is a match by name (elem.name == par.name), we copy
           elem into parameters list (parameters[ind] = elem). Thus, the list are merged, and parmeters have
           all information.
-        - As a final step, we update the decl-object with the parameters list. However, the attribute 'parameters'
-          might already exist in decl object, so we remove this first (decl.delattr('parameters')).
-          delattr implementation will first check if that attribute exists, then remove it.
-          After that we set attributes in decl object by calling setattr, noting that the implementation of
-          setattr will add lists together if an attribute of list type exists in decl. Therefore, we need
-          to remove the parameters-attribute first. We also add the return_type attribute and return decl-object.
-
+        - As a final step, we update the decl-object with the parameters list.
         """
 
         decl = self.declarator.decl()
@@ -575,9 +547,8 @@ class FunctionDefinition(Node):
         # Create a list of parameters with standard/implicit type.
         parameters = []
         for pname in decl.parameters:
-            decl_obj = CCconf.CCDecl()
-            par_dict = {'type': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}
-            parameters.append(decl_obj.setattrs(**par_dict))
+            parameters.append(CCconf.CCDecl().
+            setattr(**{'type': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}))
 
         # Now loop through all declared parameters, if any
         declared_parameters = []
@@ -589,6 +560,7 @@ class FunctionDefinition(Node):
             raise CCError(f'{self.__class__.__name__}: '
                           f'declared_parameters={len(declared_parameters)} > parameters={len(parameters)} '
                           f'({self._lineno})')
+
         # Merge declared parameters into parameters list
         for par in parameters:
             for row in declared_parameters:
@@ -597,8 +569,7 @@ class FunctionDefinition(Node):
                         ind = parameters.index(par)
                         parameters[ind] = elem
 
-        decl.delattr('parameters')
-        return decl.setattrs(parameters=parameters, return_type=self.declaration_specifiers.decl())
+        return decl.setattr(parameters=parameters, return_type=self.declaration_specifiers.decl())
 
     def stmt(self):
         return self.compound_statement.stmt()

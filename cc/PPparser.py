@@ -59,12 +59,11 @@ class PPparser(Parser):
                 val = None
 
         # NB EXPR can be a constant integer number, or an expression such as "(03<<3)", then val is None
-        self.defines.append([CCconf.CCDecl().setattrs(ctx=['const'],
-                                                      lineno=p.lineno,
-                                                      name=p.ID,
-                                                      expression=p.EXPR,
-                                                      value=val)])
-        #self.defines.append([{'ctx': ['const'], '_lineno': p.lineno, 'name':p.ID, 'expression': p.EXPR, 'value': val}])
+        self.defines.append([CCconf.CCDecl().setattr(ctx=['const'],
+                                                     lineno=p.lineno,
+                                                     name=p.ID,
+                                                     expression=p.EXPR,
+                                                     value=val)])
 
     @_('INCLUDE STRING_LITERAL')
     def include(self, p):
