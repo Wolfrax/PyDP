@@ -12,6 +12,8 @@ class CCSymbols:
 
     def add(self, symbols):
         if not isinstance(symbols, list):
+            # Some symbols might not be in a list, if so add them to a list to make it work in the loop below
+            # DeclarationSpecifier object does not return a list
             symbols = [symbols]
 
         for symbol in symbols:
@@ -54,8 +56,14 @@ class CCSymbols:
                 self.variables[symbol.name] = symbol
 
                 # For now, assume int => need to consider char, float, double
-                #if symbol.hasattr('initializer'):
-                #    mempos = self.memory.write(symbol.initializer)
+                if symbol.hasattr('initializer'):
+                    if isinstance(symbol.initializer, list):
+                        for initializer in symbol.initializer:
+                            mempos = self.memory.write(0, initializer)
+                    elif isinstance(symbol.initializer, str):
+                        mempos = self.memory.write(0, ord(symbol.initializer))
+                    else:
+                        mempos = self.memory.write(0, symbol.initializer)
 
             elif ctx == 'function':
                 if symbol.name in self.functions:

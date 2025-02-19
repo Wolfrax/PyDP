@@ -167,9 +167,13 @@ class ConditionalExpression(Node):
 
 class Declaration(Node):
     """
+    A Declaration node specifies storage class and type name and has a list of declarators.
+    Declarators have information on variable name and - depending on type - additional information such as subscripts.
+    Declarators is a list, such as int, a, b; list will include a and b.
+
     Example: char cvtab[4][4];
     self.declaration_specifiers will have information about storage_class (auto) and type_name (char)
-    self.init_declarator_list will information about name (cvtab), and subscripts ([4][4])
+    self.init_declarator_list will have information about name (cvtab), and subscripts ([4][4])
     """
     def __init__(self, lineno, decl_specifier, initializer):
         super().__init__(lineno)
@@ -199,8 +203,8 @@ class Declarator(Node):
         """
         Logic for pointer and return_type attributes.
 
-        Examples of what is returned.
-            int f(); => 'f' (name) is a function (ctx[-1]) that returns an 'int' (type)
+        Examples of what is returned in a declartion object (noted as dict below)
+            int f(); => 'f' (name) is a function (ctx[-1]) that returns an 'int' (return_type)
               {'ctx': ['id', 'function'],
                'initializer': [],
                'name': 'f',
@@ -208,7 +212,7 @@ class Declarator(Node):
                'pointer': [],
                'return_type': [],
                'storage_class': 'auto',
-               'type': 'int'}
+               'type_name': 'int'}
 
             int *fip(); => 'fip' (name) is a function (ctx[-1]) that returns a pointer (return_type) to 'int' (type)
               {'ctx': ['id', 'function'],
@@ -218,7 +222,7 @@ class Declarator(Node):
                'pointer': [],
                'return_type': ['*'],
                'storage_class': 'auto',
-               'type': 'int'}
+               'type_name': 'int'}
 
             int (*pfi) () => 'pfi' (name) is a pointer (pointer) to a function (ctx[-1]) that returns an 'int' (type)
               {'ctx': ['id', 'declarator', 'function'],
@@ -228,7 +232,7 @@ class Declarator(Node):
                'pointer': ['*'],
                'return_type': [],
                'storage_class': 'auto',
-               'type': 'int'}
+               'type_name': 'int'}
 
             int *(*pfpi) (); => 'pfpi' (name) is a pointer (pointer) to a function (ctx[-1])
                                 that returns a pointer (return_type) to 'int' (type)
@@ -239,7 +243,7 @@ class Declarator(Node):
                'pointer': ['*'],
                'return_type': ['*'],
                'storage_class': 'auto',
-               'type': 'int'}
+               'type_name': 'int'}
         """
 
         decl = self.direct_declarator.decl()
@@ -587,6 +591,10 @@ class TranslationUnit(Node):
             decl = []
             for d in self.external_declarations:
                 declaration = d.decl()
+                if isinstance(declaration, CCconf.CCDecl):
+                    pass
+                else:
+                    pass
                 decl.append(declaration)
                 CCconf.compiler.symbols.add(declaration)
             return decl

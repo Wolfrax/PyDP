@@ -22,7 +22,7 @@ class Memory:
         if pos < 0 or pos > self.size:
             raise CCError(f"Writing of memory out of bound ({pos})")
         if not isinstance(value, int):
-            raise CCError(f"Writing of memory of type {type(value)}")
+            raise CCError(f"Writing to memory of type {type(value)}")
         """
         Memory is little endian
         >>> (2496065).to_bytes(3, 'little')

@@ -293,7 +293,6 @@ class CCparser(Parser):
     @_('CHAR', 'INT', 'FLOAT', 'DOUBLE', 'struct_specifier')
     def type_specifier(self, p):
         return TypeSpecifier(p.lineno, type_name=p[0], type=ptype(p))
-        #return p[0]
 
     @_('STRUCT ID "{" struct_declaration_list "}"',
        'STRUCT "{" struct_declaration_list "}"',
