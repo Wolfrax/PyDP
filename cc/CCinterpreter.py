@@ -1,83 +1,67 @@
-from CC import CCError
+from CCError import CCError
+import struct
 
 class Memory:
     def __init__(self, size):
         self.size = size * 1024
         self.memory = [0] * self.size
+
+        # Memory struture is mapped to PDP 11/40 architecture
+        self.byte_order = '<'  # little endian, see https://docs.python.org/3/library/struct.html
+        self.mem_format = {
+            'int':    self.byte_order + 'h',   # short, 2 bytes
+            'char':   self.byte_order + 'c',   # char,  1 byte
+            'float':  self.byte_order + 'e',   # float, 2 bytes
+            'double': self.byte_order + 'f'    # float, 4 bytes
+        }
+        self.chr_enc = 'ascii'
+
         self.sp = 0
         self.counters = {'read': 0, 'write': 0}
 
-    def __len__(self):
-        return len(self.memory)
+    def write(self, value, double=False, byte=False):
+        if self.sp > self.size:
+            raise CCError(f"Writing of memory out of bound ({self.sp})")
 
-    def init(self, data):
-        if len(data) >= self.size:
-            raise CCError(f"Initialization of memory out of bound ({len(data)})")
-        self.memory[0:len(data)] = data
-
-    def init_slize(self, start_ind, size, data):
-        self.memory[start_ind: start_ind + size] = data
-
-    def write(self, pos, value, byte=False):
-        if pos < 0 or pos > self.size:
-            raise CCError(f"Writing of memory out of bound ({pos})")
-        if not isinstance(value, int):
-            raise CCError(f"Writing to memory of type {type(value)}")
-        """
-        Memory is little endian
-        >>> (2496065).to_bytes(3, 'little')
-        b'A\x16&'
-        >>> s
-        [65, 22, 38]
-        >>> s[2] << 16 | s[1] << 8 | s[0]
-        2496065
-        """
-
-        self.counters['write'] += 1
-
+        if not byte and self.sp % 2 != 0:  # write on even memory boundary
+            self.sp += 1
         pos = self.sp
-        if value <= 0xFF:
-            if byte:
-                self.memory[self.sp] = value
-                self.sp += 1
+
+        if isinstance(value, str):
+            if len(value) > 1:
+                for ch in value:
+                    self.write(ch, byte=True)
+                return pos
             else:
-                self.memory[self.sp] = value
-                self.memory[self.sp + 1] = 0
-                self.sp += 2
+                ba = bytearray(struct.pack(self.mem_format['char'], value.encode(self.chr_enc)))
+        elif isinstance(value, float):
+            ba = bytearray(struct.pack(self.mem_format['double' if double else 'float'],value))
+        elif isinstance(value, int):
+            ba = bytearray(struct.pack(self.mem_format['int'], value))
         else:
-            length = 0
-            v = value
-            while v != 0:
-                length += 1
-                v >>= 8
-            if length % 2 != 0:
-                # Pad with 0 to make it even (store on word boundary), most significant byte first (little endian)
-                self.memory[self.sp] = 0
-                self.sp += 1
-                ret_length = length + 1
-            else:
-                ret_length = length
+            raise CCError(f"Memory write: unknown type ({type(value)})")
 
-            value_bytes = value.to_bytes(length, 'little')
+        for b in ba:
+            self.memory[self.sp] = b
+            self.sp += 1
+            self.counters['write'] += 1
 
-            for byte_pos in range(length):
-                self.memory[pos] = value_bytes[byte_pos]
-                pos += 1
+        return pos
 
-            return ret_length
-
-    def read(self, pos, nr=2):
+    def read(self, pos, type, double=False):
         if pos < 0 or pos > self.size:
             raise CCError(f"Reading of memory out of bound ({pos})")
 
         self.counters['read'] += 1
 
-        ret_val = 0
-        for i in range(nr - 1, -1, -1):
-            mem_val = self.memory[pos + i]
-            ret_val = ret_val << 8 | mem_val
-
-        return ret_val
+        if type == str:
+            return struct.unpack_from(self.mem_format['char'], bytes(self.memory), pos)[0].decode(self.chr_enc)
+        elif type == float:
+            return struct.unpack_from(self.mem_format['double' if double else 'float'], bytes(self.memory), pos)[0]
+        elif type == int:
+            return struct.unpack_from(self.mem_format['int'], bytes(self.memory), pos)[0]
+        else:
+            raise CCError(f"Memory read: unknown type ({type})")
 
     def get_counters(self):
         return self.counters['read'], self.counters['write']
@@ -85,3 +69,25 @@ class Memory:
 class CCinterpreter:
     def __init__(self):
         self.memory = Memory(64)
+
+if __name__ == "__main__":
+    # test memory write/read
+
+    memory = Memory(64)
+
+    pos = memory.write2(12345)
+    print(f'{memory.read2(pos, int)} [{pos}]')
+
+    pos = memory.write2(5.1)
+    print(f'{memory.read2(pos, float)} [{pos}]')
+    pos = memory.write2(3.14, double=True)
+    print(f'{memory.read2(pos, float, double=True)} [{pos}]')
+
+    pos = memory.write2('a')
+    print(f'{memory.read2(pos, str)} [{pos}]')
+    pos = memory.write2('def')
+    for i in range(len('def')):
+        print(f'{memory.read2(pos, str)} [{pos}]')
+        pos += 1
+
+    print(memory.counters)

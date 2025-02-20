@@ -1,5 +1,5 @@
 import pprint
-from CC import CCError
+from CCError import CCError
 
 class CCSymbols:
     def __init__(self, memory):
@@ -55,15 +55,12 @@ class CCSymbols:
                 # several times. The last occurrence will overwrite previous entries in symbol table
                 self.variables[symbol.name] = symbol
 
-                # For now, assume int => need to consider char, float, double
                 if symbol.hasattr('initializer'):
                     if isinstance(symbol.initializer, list):
                         for initializer in symbol.initializer:
-                            mempos = self.memory.write(0, initializer)
-                    elif isinstance(symbol.initializer, str):
-                        mempos = self.memory.write(0, ord(symbol.initializer))
+                            symbol.mempos = self.memory.write(initializer)
                     else:
-                        mempos = self.memory.write(0, symbol.initializer)
+                        symbol.mempos = self.memory.write(symbol.initializer)
 
             elif ctx == 'function':
                 if symbol.name in self.functions:

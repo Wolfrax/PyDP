@@ -3,7 +3,7 @@
 import pprint
 import json
 import CCconf
-from CC import CCError
+from CCError import CCError
 
 #from llvmlite.binding import StorageClass
 
@@ -203,10 +203,9 @@ class Declarator(Node):
         """
         Logic for pointer and return_type attributes.
 
-        Examples of what is returned in a declartion object (noted as dict below)
+        Examples of what is returned in a declaration object (noted as dict below)
             int f(); => 'f' (name) is a function (ctx[-1]) that returns an 'int' (return_type)
               {'ctx': ['id', 'function'],
-               'initializer': [],
                'name': 'f',
                'parameters': [],
                'pointer': [],
@@ -216,7 +215,6 @@ class Declarator(Node):
 
             int *fip(); => 'fip' (name) is a function (ctx[-1]) that returns a pointer (return_type) to 'int' (type)
               {'ctx': ['id', 'function'],
-               'initializer': [],
                'name': 'fip',
                'parameters': [],
                'pointer': [],
@@ -226,7 +224,6 @@ class Declarator(Node):
 
             int (*pfi) () => 'pfi' (name) is a pointer (pointer) to a function (ctx[-1]) that returns an 'int' (type)
               {'ctx': ['id', 'declarator', 'function'],
-               'initializer': [],
                'name': 'pfi',
                'parameters': [],
                'pointer': ['*'],
@@ -237,7 +234,6 @@ class Declarator(Node):
             int *(*pfpi) (); => 'pfpi' (name) is a pointer (pointer) to a function (ctx[-1])
                                 that returns a pointer (return_type) to 'int' (type)
               {'ctx': ['id', 'declarator', 'function'],
-               'initializer': [],
                'name': 'pfpi',
                'parameters': [],
                'pointer': ['*'],
@@ -279,8 +275,10 @@ class InitDeclarator(Node):
 
     def decl(self):
         decl = self.declarator.decl()
+
         if self.initializer is not None:
             decl.setattr(initializer=self.initializer.decl())
+
         return decl
 
 
@@ -306,11 +304,11 @@ class DirectDeclarator(Node):
         if ctx == 'function':
             decl = self.direct_declarator.decl()
             parameters = self.identifier_list.get() if self.identifier_list is not None else []
-            return decl.setattr(ctx=decl.ctx + [ctx], parameters=parameters, initializer=[])
+            return decl.setattr(ctx=decl.ctx + [ctx], parameters=parameters)
 
         if ctx == 'declarator':
             decl = self.declarator.decl()
-            return decl.settattrs(ctx=decl.ctx + [ctx], intializer=[])
+            return decl.settattrs(ctx=decl.ctx + [ctx])
 
         if ctx == 'array':
             decl = self.direct_declarator.decl()
@@ -381,6 +379,7 @@ class Initializer(Node):
             return self.constant
 
         if self.constant_expression_list:
+            # Here we should check if the c_expr is a string, and if so - is it a constant with a value?
             c_expr = []
             for c in self.constant_expression_list:
                 c_expr.append(c.eval())

@@ -1,1 +1,1 @@
-i sizeof(int);
+float d 1.0;
