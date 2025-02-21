@@ -58,7 +58,10 @@ class CCSymbols:
                 if symbol.hasattr('initializer'):
                     if isinstance(symbol.initializer, list):
                         for initializer in symbol.initializer:
-                            symbol.mempos = self.memory.write(initializer)
+                            if isinstance(initializer, str):
+                                pass
+                            else:
+                                symbol.mempos = self.memory.write(initializer)
                     else:
                         symbol.mempos = self.memory.write(symbol.initializer)
 
@@ -68,6 +71,17 @@ class CCSymbols:
 
                 self.functions[symbol.name] = symbol
             elif ctx == 'array':
+                if symbol.hasattr('initializer'):
+                    print(f'initializer-array {symbol.name} len={len(symbol.initializer)}: {symbol.initializer}: [{symbol.lineno}]')
+                if symbol.hasattr('subscript'):
+                    for sub in symbol.subscript:
+                        ind = self.get(sub) if isinstance(sub, str) else sub
+                        for i in range(ind):
+                            if i == 0:
+                                symbol.mempos = self.memory.write(0)
+                            else:
+                                self.memory.write(0)
+                        print(f'array {symbol.name}: {symbol.subscript} [{ind}] mempos={symbol.mempos}')
                 self.variables[symbol.name] = symbol
             else:
                 raise CCError(f"Unknown ctx: {ctx} ({symbol.lineno})")

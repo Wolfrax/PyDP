@@ -1,9 +1,12 @@
 import pprint
 import argparse
 import os
+
 import CCconf
 
 if __name__ == '__main__':
+    global compiler
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", help="file to compile", default='')
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
@@ -35,7 +38,7 @@ if __name__ == '__main__':
 
     ext_decl = CCconf.compiler.cc_parser.prg.decl()
     #pprint.pprint(ext_decl)
-    CCconf.compiler.symbols.dump()
+    #CCconf.compiler.symbols.dump()
 
     #stmt = CCconf.compiler.cc_parser.prg.stmt()
     #pprint.pprint(stmt)
