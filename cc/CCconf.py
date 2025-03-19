@@ -1,4 +1,4 @@
-import CCparser
+from cc import CCparser
 import PPparser
 import CCSymbols
 import CCinterpreter
