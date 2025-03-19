@@ -31,3 +31,11 @@ struct kwtab {
 	"int",		INT,
 };
 
+int a 1;
+int *b { a };
+char *c "INT";
+int d 'a';
+char e 0177;
+int f &y[1];
+
+

@@ -36,7 +36,3 @@ class CC:
         self.pp_parser = PPparser.PPparser()
         self.cc_parser = CCparser.CCparser()
 
-def init(fn, verbose, interpret):
-    global compiler
-
-    compiler=CC(fn=fn, verbose=verbose, interpret=interpret)

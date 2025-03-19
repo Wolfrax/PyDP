@@ -2,9 +2,11 @@ import pprint
 import argparse
 import os
 import logging
-from cc import CCconf
+from .. import *
 
 if __name__ == '__main__':
+    global compiler
+
     logger = logging.getLogger(__name__)
     logging.basicConfig(encoding='utf-8', level=logging.DEBUG, format='%(asctime)s %(message)s')
 
@@ -18,31 +20,31 @@ if __name__ == '__main__':
     os.chdir(args.workingdir)
     fn = args.file if args.file else ''
 
-    compiler = CCconf.CC(fn=fn, verbose=args.verbose, interpret=args.interpret)
-    #CCconf.init(fn=fn, verbose=args.verbose, interpret=args.interpret)
+    CCconf.init(fn=fn, verbose=args.verbose, interpret=args.interpret)
 
-    compiler.pp_parser.preprocess(compiler.file)
+    CCconf.compiler.pp_parser.preprocess(CCconf.compiler.file)
 
     # When file is preprocessed, we have all defines (which can include expression) in a list,
     # add this list to symbol table
-    for c in compiler.pp_parser.defines:
-        compiler.symbols.add(c)
+    for c in CCconf.compiler.pp_parser.defines:
+        CCconf.compiler.symbols.add(c)
 
     # Now parse the file
     # Note that we need to parse the include files, avoiding that it is included circularly
-    for inc_file in compiler.pp_parser.includes:
-        if compiler.pp_parser.visited(inc_file): continue  # Include file already visited
-        result = compiler.cc_parser.compile(inc_file)
-        compiler.pp_parser.set_visited(inc_file)  # Set this file to visited
+    for inc_file in CCconf.compiler.pp_parser.includes:
+        if CCconf.compiler.pp_parser.visited(inc_file): continue  # Include file already visited
+        result = CCconf.compiler.cc_parser.compile(inc_file)
+        CCconf.compiler.pp_parser.set_visited(inc_file)  # Set this file to visited
 
-    result = compiler.cc_parser.compile(compiler.file)
-    compiler.cc_parser.dump(compiler.file + ".json")
+    result = CCconf.compiler.cc_parser.compile(CCconf.compiler.file)
+    CCconf.compiler.cc_parser.dump(CCconf.compiler.file + ".json")
 
-    ext_decl = compiler.cc_parser.prg.decl()
+    ext_decl = CCconf.compiler.cc_parser.prg.decl()
     #pprint.pprint(ext_decl)
-    #compiler.symbols.dump()
+    #CCconf.compiler.symbols.dump()
 
-    #stmt = compiler.cc_parser.prg.stmt()
+    #stmt = CCconf.compiler.cc_parser.prg.stmt()
     #pprint.pprint(stmt)
+
 
 

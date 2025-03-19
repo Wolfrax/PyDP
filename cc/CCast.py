@@ -2,10 +2,16 @@
 
 import pprint
 import json
+import __main__ as CC  # Ugly...
 import CCconf
 from CCError import CCError
+import logging
+
+#from cc.CCSymbols import CCSymbols
 
 #from llvmlite.binding import StorageClass
+
+logger = logging.getLogger(__name__)
 
 class Node:
     def __init__(self, lineno):
@@ -39,7 +45,7 @@ class PrimaryExpression(Node):
 
         if constant is None and expression is None:
             raise CCError(f'{self.__class__.__name__}: '
-                          f'PrimaryExpression: constant and expression cannot be None ({self._lineno})')
+                          f'PrimaryExpression: constant and expression cannot be None [{self._lineno}]')
 
         if constant is not None:
             if isinstance(constant, str):
@@ -53,7 +59,7 @@ class PrimaryExpression(Node):
                 self._ctx = 'float'
             else:
                 raise CCError(f'{self.__class__.__name__}: '
-                              f'PrimaryExpression: unsupported constant type: {constant} ({self._lineno})')
+                              f'PrimaryExpression: unsupported constant type: {constant} [{self._lineno}]')
         else:
             self._ctx = 'expr'
 
@@ -80,7 +86,7 @@ class PostfixExpression(Node):
             self._ctx = self.__ctx[op]
         else:
             raise CCError(f'{self.__class__.__name__}: '
-                          f'Postfix expression: Unknown operator {op} ({self._lineno})')
+                          f'Postfix expression: Unknown operator {op} [{self._lineno}]')
 
         self.postfix_expression = postfix_expression  # Should be PrimaryExpression: id
         self.expression = expression  # Used in subscript, such as a[b+1], expression == b+1
@@ -104,10 +110,10 @@ class UnaryExpression(Node):
         super().__init__(lineno)
         self.op = op
         self.unary_expression = unary_expression
-        self.type_name = type_name
+        self.type_name = type_name # type_name == 'pointer' if op == '&'???
 
     def eval(self):
-        return None
+        return None  # FIXME: evaluate, for example &-operator
 
     def stmt(self):
         return f"{self.op} {self.type_name} {self.unary_expression}"
@@ -131,11 +137,11 @@ class BinOpExpression(Node):
                 pass
             elif (isinstance(left, int) and isinstance(right, str)) or (isinstance(left, str) and isinstance(right, int)):
                 if isinstance(right, str):
-                    right = CCconf.compiler.symbols.get(right)
+                    right = CC.compiler.symbols.get(right)
                 else:
-                    left = CCconf.compiler.symbols.get(left)
+                    left = CC.compiler.symbols.get(left)
             else:
-                raise CCError(f'{self.__class__.__name__}: not compatible types ({self._lineno})')
+                raise CCError(f'{self.__class__.__name__}: not compatible types [{self._lineno}]')
 
         if self.op == '+':
             return left + right
@@ -152,7 +158,7 @@ class BinOpExpression(Node):
         elif self.op == '|':
             return left | right
         else:
-            raise CCError(f'{self.__class__.__name__}: unsupported operator ({self._lineno})')
+            raise CCError(f'{self.__class__.__name__}: unsupported operator [{self._lineno}]')
 
     def stmt(self):
         return f"{self.op} {self.expr_l} {self.expr_r}"
@@ -308,12 +314,17 @@ class DirectDeclarator(Node):
 
         if ctx == 'declarator':
             decl = self.declarator.decl()
-            return decl.settattrs(ctx=decl.ctx + [ctx])
+            return decl.setattr(ctx=decl.ctx + [ctx])
 
         if ctx == 'array':
             decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
+                expr = CC.compiler.symbols.get_constant(expr) if isinstance(expr, str) else expr
+                if not expr:
+                    raise CCError(f'{self.__class__.__name__}: '
+                                  f'expression = {expr} not found in symbol table '
+                                  f'[{self._lineno}]')
                 subscript = decl.subscript + [expr] if decl.hasattr('subscript') else [expr]
                 return decl.setattr(ctx=decl.ctx + [ctx], subscript=subscript)
             else:
@@ -371,10 +382,24 @@ class StructDeclaration(Node):
 class Initializer(Node):
     def __init__(self, lineno, constant=None, constant_expression_list=None):
         super().__init__(lineno)
+        """
+        - int a 0; => constant is 0
+        - int *a { b }; => constant_expression_list is [PrimaryExpression.value = 'b'], 1-element list
+        - int *a &b; => constant_expression_list is [PrimaryExpression.value = 'b'], 1-element list
+        - int a[] { 0, 1 }; => constant_expression_list is [PrimaryExpression.value = '0'. ...=value 1], 2-element list
+        - int *a &b[1]; => constant_expression_list is [PostfixExpression], 1-element list
+          'a' is a pointer that is initialized to the address of the second element of the array b
+          FIXME: PostfixExpression.eval() not implemented!
+        - char *a[] {"abc", "def"};
+        """
+        if isinstance(constant, str):
+            constant = constant.replace('"', '')  # "ABC" => ABC
+
         self.constant = constant
         self.constant_expression_list = constant_expression_list
 
     def decl(self):
+        # FIXME, self.constant_expression_list (& operator)
         if self.constant is not None:
             return self.constant
 
@@ -382,7 +407,35 @@ class Initializer(Node):
             # Here we should check if the c_expr is a string, and if so - is it a constant with a value?
             c_expr = []
             for c in self.constant_expression_list:
-                c_expr.append(c.eval())
+                val = c.eval()
+                if isinstance(val, str) and (val[0] != '"' and val[-1] != '"'):
+                    """
+                    If val is a string, and starts/ends with "-character, it is simply appended as value to c_expr,
+                    but remove "-characters.
+                    
+                    int *a { b }; or int *a &b;
+                    initializer element (b) is a symbol, that can be either:
+                    - a symbolic constant: #define b 1 ==> b is symbolic constant with value 1
+                      symbols.get will search first in #define constants, and if found return the value
+                    - a variable that must be declared before this declaration.
+                      In this case, 'b' is a reference that 'a' should be initialized with.
+                      Thus, we need to get the mempos for b.
+                      Even if b initialized (int b 1;), the symbol table entry for b, will not have the 
+                      'value' attribute, thus get() will return None. The initializer 1 is written into memory. 
+                    """
+                    name = val
+                    val = CC.compiler.symbols.get_constant(name)
+                    if val is None:
+                        val = CC.compiler.symbols.get_mempos(name)
+                    if val is None:
+                        raise CCError(f'{self.__class__.__name__}: '
+                                      f'name = {name} not found in symbol table '
+                                      f'[{self._lineno}]')
+
+                if isinstance(val, str) and (val[0] == '"' and val[-1] == '"'):
+                    val = val[1:-1]  # { "ABC" } => { ABC }
+
+                c_expr.append(val)
 
             return c_expr
 
@@ -562,7 +615,7 @@ class FunctionDefinition(Node):
         if len(declared_parameters) > len(parameters):
             raise CCError(f'{self.__class__.__name__}: '
                           f'declared_parameters={len(declared_parameters)} > parameters={len(parameters)} '
-                          f'({self._lineno})')
+                          f'[{self._lineno}]')
 
         # Merge declared parameters into parameters list
         for par in parameters:
@@ -590,12 +643,8 @@ class TranslationUnit(Node):
             decl = []
             for d in self.external_declarations:
                 declaration = d.decl()
-                if isinstance(declaration, CCconf.CCDecl):
-                    pass
-                else:
-                    pass
                 decl.append(declaration)
-                CCconf.compiler.symbols.add(declaration)
+                CC.compiler.symbols.add(declaration)
             return decl
         else:
             return None

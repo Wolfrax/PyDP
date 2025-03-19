@@ -1,1 +1,1 @@
-float d 1.0;
+struct a { int a1; int a2; } a;

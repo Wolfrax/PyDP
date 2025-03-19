@@ -17,8 +17,12 @@ class PPLexer(Lexer):  # The lexer for the preprocessor
 
     ignore = ' \t'
 
-    @_(r'(?!\#).*\n')
+    @_(r'(?!\#).+')
     def ignore_all_but_hash(self, t):
+        self.lineno += t.value.count('\n')
+
+    @_(r'\n')
+    def ignore_nl(self, t):
         self.lineno += t.value.count('\n')
 
     @_(r'[#]\n')
@@ -50,7 +54,7 @@ class CLexer(Lexer):
         FLOAT, FOR,
         GE, GOTO,
         ID, IF, INCR, INT,
-        LE,
+        LE, LONG,
         NE,
         OR,
         POINTER,
@@ -124,6 +128,7 @@ class CLexer(Lexer):
     ID['goto'] = GOTO
     ID['if'] = IF
     ID['int'] = INT
+    ID['long'] = LONG
     ID['register'] = REG
     ID['return'] = RETURN
     ID['sizeof'] = SIZEOF

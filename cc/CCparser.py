@@ -34,7 +34,6 @@ class CCparser(Parser):
         self.result = None
         self.lex = CClexer.CLexer()
 
-
     def compile(self, fn):
         with open(fn, 'r') as f:
             print(f"Compiling {fn}")
@@ -48,6 +47,13 @@ class CCparser(Parser):
     def dump(self, fn):
         with open(fn, 'w') as f:
             json.dump(self.prg, f, indent=2, default=lambda o: o.__dict__, sort_keys=True)
+
+    def error(self, p):
+        if not p:
+            print("End of File!")
+            return
+
+        raise CCError(f'Error parsing {p}')
 
     @_('')
     def empty(self, p): pass
@@ -251,13 +257,20 @@ class CCparser(Parser):
     def init_declarator(self, p):
         return p[0] if len(p) == 1 else InitDeclarator(p.lineno, declarator=p[0], initializer=p[1])
 
-    @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"')
+    @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"', '"&" expression', 'STRING_LITERAL')
     def initializer(self, p):
-        if len(p) == 1:
-            return Initializer(p.lineno, constant=p[0])
+        if len(p) == 1:  # int a 1; or char *c "ABC";
+            if isinstance(p[0], str):
+                const = p[0].replace("'", '')  # 'a' => a
+            else:
+                const = p[0]
+            return Initializer(p.lineno, constant=const)
         elif len(p) == 2:
-            return Initializer(p.lineno, constant=-p[1])
-        else:
+            if p[0] == '-':  # int a -1;
+                return Initializer(p.lineno, constant=-p[1])
+            else:  # p[0] = '&', int *a &b; => Equivalent to int *a { b };
+                return Initializer(p.lineno, constant_expression_list=ASTList(p.lineno, items=[p[1]]))
+        else:  # int *a { b }; => Equivalent to int *a &b;
              return Initializer(p.lineno, constant_expression_list=ASTList(p.lineno, items=p[1]))
 
     @_('constant_init_expression', 'constant_expression_list "," constant_init_expression')
@@ -290,7 +303,7 @@ class CCparser(Parser):
     def storage_class_specifier(self, p):
         return p[0]
 
-    @_('CHAR', 'INT', 'FLOAT', 'DOUBLE', 'struct_specifier')
+    @_('CHAR', 'INT', 'LONG', 'FLOAT', 'DOUBLE', 'struct_specifier')
     def type_specifier(self, p):
         return TypeSpecifier(p.lineno, type_name=p[0], type=ptype(p))
 

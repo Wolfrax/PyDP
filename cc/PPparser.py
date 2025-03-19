@@ -1,7 +1,7 @@
 from sly import Parser
-import CClexer
 import pprint
-import CCconf
+import cc
+import CClexer
 
 class PPparser(Parser):
     start = 'translation_unit'
@@ -39,6 +39,12 @@ class PPparser(Parser):
 
         return self.result
 
+    def error(self, p):
+        print("Error in preprocessing")
+        if not p:
+            print("End of File!")
+            return
+
     @_('list_of_tokens')
     def translation_unit(self, p): pass
 
@@ -59,11 +65,11 @@ class PPparser(Parser):
                 val = None
 
         # NB EXPR can be a constant integer number, or an expression such as "(03<<3)", then val is None
-        self.defines.append([CCconf.CCDecl().setattr(ctx=['const'],
-                                                     lineno=p.lineno,
-                                                     name=p.ID,
-                                                     expression=p.EXPR,
-                                                     value=val)])
+        self.defines.append([cc.CCconf.CCDecl().setattr(ctx=['const'],
+                                                        lineno=p.lineno,
+                                                        name=p.ID,
+                                                        expression=p.EXPR,
+                                                        value=val)])
 
     @_('INCLUDE STRING_LITERAL')
     def include(self, p):
@@ -83,5 +89,3 @@ if __name__ == '__main__':
     pprint.pp(pp_parser.includes)
     print("Defines")
     pprint.pp(pp_parser.defines)
-
-
