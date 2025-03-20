@@ -2,7 +2,14 @@ import pprint
 import argparse
 import os
 import logging
-from cc import CCconf
+from CCconf import compiler
+from cc.CCinterpreter import CCinterpreter
+from cc.PPparser import PPparser
+from cc.CCparser import CCparser
+from cc.CCSymbols import CCSymbols
+
+
+#from cc import CCconf
 
 if __name__ == '__main__':
     logger = logging.getLogger(__name__)
@@ -18,8 +25,12 @@ if __name__ == '__main__':
     os.chdir(args.workingdir)
     fn = args.file if args.file else ''
 
-    compiler = CCconf.CC(fn=fn, verbose=args.verbose, interpret=args.interpret)
-    #CCconf.init(fn=fn, verbose=args.verbose, interpret=args.interpret)
+    interpreter = CCinterpreter()
+    symbols = CCSymbols(interpreter.memory)
+    pp_parser = PPparser()
+    cc_parser = CCparser()
+
+    compiler.setup(fn, args.verbose, interpreter, symbols,  pp_parser, cc_parser)
 
     compiler.pp_parser.preprocess(compiler.file)
 

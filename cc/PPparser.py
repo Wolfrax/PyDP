@@ -1,7 +1,7 @@
 from sly import Parser
 import pprint
-import cc
 import CClexer
+from cc.CCconf import CCDecl
 
 class PPparser(Parser):
     start = 'translation_unit'
@@ -65,11 +65,7 @@ class PPparser(Parser):
                 val = None
 
         # NB EXPR can be a constant integer number, or an expression such as "(03<<3)", then val is None
-        self.defines.append([cc.CCconf.CCDecl().setattr(ctx=['const'],
-                                                        lineno=p.lineno,
-                                                        name=p.ID,
-                                                        expression=p.EXPR,
-                                                        value=val)])
+        self.defines.append([CCDecl().setattr(ctx=['const'], lineno=p.lineno, name=p.ID, expression=p.EXPR, value=val)])
 
     @_('INCLUDE STRING_LITERAL')
     def include(self, p):

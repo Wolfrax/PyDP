@@ -2,7 +2,7 @@ import pprint
 import argparse
 import os
 import logging
-from .. import *
+#from .. import *
 
 if __name__ == '__main__':
     global compiler

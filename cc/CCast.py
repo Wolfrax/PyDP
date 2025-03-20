@@ -2,8 +2,7 @@
 
 import pprint
 import json
-import __main__ as CC  # Ugly...
-import CCconf
+from CCconf import compiler, CCDecl
 from CCError import CCError
 import logging
 
@@ -137,9 +136,9 @@ class BinOpExpression(Node):
                 pass
             elif (isinstance(left, int) and isinstance(right, str)) or (isinstance(left, str) and isinstance(right, int)):
                 if isinstance(right, str):
-                    right = CC.compiler.symbols.get(right)
+                    right = compiler.symbols.get(right)
                 else:
-                    left = CC.compiler.symbols.get(left)
+                    left = compiler.symbols.get(left)
             else:
                 raise CCError(f'{self.__class__.__name__}: not compatible types [{self._lineno}]')
 
@@ -194,7 +193,7 @@ class Declaration(Node):
             decl = specifiers_dict | declarator.decl().__dict__
             if 'ctx' in specifiers_dict:
                 decl['ctx'] += specifiers_dict['ctx']
-            decl_obj = CCconf.CCDecl().setattr(**decl)
+            decl_obj = CCDecl().setattr(**decl)
             declaration.append(decl_obj)
 
         return declaration
@@ -305,7 +304,7 @@ class DirectDeclarator(Node):
         ctx = self._ctx
 
         if ctx == 'id':
-            return CCconf.CCDecl().setattr(ctx=[ctx], name=self.id, lineno=self._lineno)
+            return CCDecl().setattr(ctx=[ctx], name=self.id, lineno=self._lineno)
 
         if ctx == 'function':
             decl = self.direct_declarator.decl()
@@ -320,7 +319,7 @@ class DirectDeclarator(Node):
             decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
-                expr = CC.compiler.symbols.get_constant(expr) if isinstance(expr, str) else expr
+                expr = compiler.symbols.get_constant(expr) if isinstance(expr, str) else expr
                 if not expr:
                     raise CCError(f'{self.__class__.__name__}: '
                                   f'expression = {expr} not found in symbol table '
@@ -345,7 +344,7 @@ class StructSpecifier(Node):
                     decl_list.append(elem)
 
         id = '' if self.id is None else self.id
-        return CCconf.CCDecl().setattr(struct_tag=id, declaration_list=decl_list)
+        return CCDecl().setattr(struct_tag=id, declaration_list=decl_list)
 
 class StructDeclaration(Node):
     def __init__(self, lineno, specifier_qualifiers, declarators):
@@ -424,9 +423,9 @@ class Initializer(Node):
                       'value' attribute, thus get() will return None. The initializer 1 is written into memory. 
                     """
                     name = val
-                    val = CC.compiler.symbols.get_constant(name)
+                    val = compiler.symbols.get_constant(name)
                     if val is None:
-                        val = CC.compiler.symbols.get_mempos(name)
+                        val = compiler.symbols.get_mempos(name)
                     if val is None:
                         raise CCError(f'{self.__class__.__name__}: '
                                       f'name = {name} not found in symbol table '
@@ -457,9 +456,9 @@ class TypeSpecifier(Node):
 
     def decl(self):
         if self._ctx == 'struct_specifier':
-            return CCconf.CCDecl().setattr(ctx=[self._ctx], **self.type_name.decl().__dict__)
+            return CCDecl().setattr(ctx=[self._ctx], **self.type_name.decl().__dict__)
 
-        return CCconf.CCDecl().setattr(type_name=self.type_name)
+        return CCDecl().setattr(type_name=self.type_name)
 
 class TypeName(Node):
     def __init__(self, lineno, specifier_qualifier_list, pointer=None):
@@ -603,7 +602,7 @@ class FunctionDefinition(Node):
         # Create a list of parameters with standard/implicit type.
         parameters = []
         for pname in decl.parameters:
-            parameters.append(CCconf.CCDecl().
+            parameters.append(CCDecl().
             setattr(**{'type': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}))
 
         # Now loop through all declared parameters, if any
@@ -644,7 +643,7 @@ class TranslationUnit(Node):
             for d in self.external_declarations:
                 declaration = d.decl()
                 decl.append(declaration)
-                CC.compiler.symbols.add(declaration)
+                compiler.symbols.add(declaration)
             return decl
         else:
             return None
