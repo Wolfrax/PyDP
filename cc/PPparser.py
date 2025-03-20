@@ -1,18 +1,18 @@
 from sly import Parser
 import pprint
-import CClexer
+from cc.CClexer import PPLexer, CLexer
 from cc.CCconf import CCDecl
 
 class PPparser(Parser):
     start = 'translation_unit'
-    tokens = CClexer.PPLexer.tokens
+    tokens = PPLexer.tokens
     #debugfile = 'PPparser.out'
 
     def __init__(self):
         self.defines = []
         self.includes = {}
         self.result = None
-        self.lex = CClexer.PPLexer()
+        self.lex = PPLexer()
 
     def visited(self, k):
         return self.includes[k]['_visited']

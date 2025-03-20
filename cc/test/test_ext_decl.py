@@ -1,20 +1,20 @@
-import argparse
-import os
-import logging
-import cc
-from cc import CCconf
-import pytest
+import sys
+sys.path.append('..')
 
-class TestCompiler:
-    def __init__(self):
-        self.compiler = None
-    def setup(self, compiler):
-        self.compiler = compiler
+from cc.CCconf import compiler
+from cc.CCinterpreter import CCinterpreter
+from cc.PPparser import PPparser
+from cc.CCparser import CCparser
+from cc.CCSymbols import CCSymbols
 
-test_compiler = TestCompiler().setup(cc.CCconf.CC(fn='', verbose=False, interpret=False))
+interpreter = CCinterpreter()
+symbols = CCSymbols(interpreter.memory)
+pp_parser = PPparser()
+cc_parser = CCparser()
+
+compiler.setup('', True, interpreter, symbols,  pp_parser, cc_parser)
 
 def compile(src_str):
-    compiler = test_compiler.compiler
     compiler.pp_parser.preprocess(src_str=src_str)
 
     for c in compiler.pp_parser.defines:
@@ -26,9 +26,4 @@ def compile(src_str):
 
 def test_var_decl():
     compile("int i;")
-
-if __name__ == '__main__':
-    compiler = test_compiler.compiler
-
-
 
