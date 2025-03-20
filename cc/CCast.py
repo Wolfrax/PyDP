@@ -3,8 +3,8 @@
 import pprint
 import json
 import __main__ as CC  # Ugly...
-import CCconf
-from CCError import CCError
+from cc import CCconf
+from cc import CCError
 import logging
 
 #from cc.CCSymbols import CCSymbols

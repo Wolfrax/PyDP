@@ -1,7 +1,7 @@
 from sly import Parser
 import pprint
 import cc
-import CClexer
+from cc import CClexer
 
 class PPparser(Parser):
     start = 'translation_unit'
@@ -20,22 +20,27 @@ class PPparser(Parser):
     def set_visited(self, k, val=True):
         self.includes[k]['_visited'] = val
 
-    def preprocess(self, fn):
-        with open(fn, 'r') as f:
-            print(f"Preprocessing {fn}")
-            self.result = self.parse(self.lex.tokenize(f.read()))
-            self.restart()
-
-        for k in self.includes:
-            with open(k, 'r') as f:
-                print(f"Preprocessing {k}")
-                if self.visited(k): continue
+    def preprocess(self, fn=None, src_str=None):
+        if src_str is None:
+            with open(fn, 'r') as f:
+                print(f"Preprocessing {fn}")
                 self.result = self.parse(self.lex.tokenize(f.read()))
                 self.restart()
-                self.set_visited(k)
 
-        for k in self.includes:
-            self.set_visited(k, False)
+            for k in self.includes:
+                with open(k, 'r') as f:
+                    print(f"Preprocessing {k}")
+                    if self.visited(k): continue
+                    self.result = self.parse(self.lex.tokenize(f.read()))
+                    self.restart()
+                    self.set_visited(k)
+
+            for k in self.includes:
+                self.set_visited(k, False)
+        else:
+            print(f"Preprocessing {fn}")
+            self.result = self.parse(self.lex.tokenize(src_str))
+            self.restart()
 
         return self.result
 

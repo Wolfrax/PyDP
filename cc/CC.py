@@ -19,7 +19,6 @@ if __name__ == '__main__':
     fn = args.file if args.file else ''
 
     compiler = CCconf.CC(fn=fn, verbose=args.verbose, interpret=args.interpret)
-    #CCconf.init(fn=fn, verbose=args.verbose, interpret=args.interpret)
 
     compiler.pp_parser.preprocess(compiler.file)
 
@@ -44,5 +43,4 @@ if __name__ == '__main__':
 
     #stmt = compiler.cc_parser.prg.stmt()
     #pprint.pprint(stmt)
-
 

@@ -1,8 +1,7 @@
 import pprint
 from distutils.fancy_getopt import neg_alias_re
 
-from CCError import CCError
-import cc
+from cc.CCError import CCError
 import logging
 
 logger = logging.getLogger(__name__)

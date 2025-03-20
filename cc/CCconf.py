@@ -1,7 +1,7 @@
 from cc import CCparser
-import PPparser
-import CCSymbols
-import CCinterpreter
+from cc import PPparser
+from cc import CCSymbols
+from cc import CCinterpreter
 
 # This is the declaration object interfacing the AST and the Symbol tables
 class CCDecl:
@@ -31,8 +31,8 @@ class CC:
     def __init__(self, fn, verbose, interpret):
         self.file = fn
         self.verbose = verbose
-        self.interpreter = CCinterpreter.CCinterpreter() if interpret else None
-        self.symbols = CCSymbols.CCSymbols(self.interpreter.memory if self.interpreter else None)
+        self.interpreter = CCinterpreter.CCinterpreter()
+        self.symbols = CCSymbols.CCSymbols(self.interpreter.memory)
         self.pp_parser = PPparser.PPparser()
         self.cc_parser = CCparser.CCparser()
 
