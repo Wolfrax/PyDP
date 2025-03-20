@@ -1,6 +1,6 @@
 from sly import Parser
-import CClexer
-from CCast import *
+from cc import CClexer
+from cc.CCast import *
 import json
 
 ptype = lambda p: p._slice[0].type
@@ -34,11 +34,16 @@ class CCparser(Parser):
         self.result = None
         self.lex = CClexer.CLexer()
 
-    def compile(self, fn):
-        with open(fn, 'r') as f:
-            print(f"Compiling {fn}")
-            self.result = self.parse(self.lex.tokenize(f.read()))
+    def compile(self, fn=None, src_str=None):
+        if fn is None:
+            print(f"Compiling {src_str}")
+            self.result = self.parse(self.lex.tokenize(src_str))
             self.restart()
+        else:
+            with open(fn, 'r') as f:
+                print(f"Compiling {fn}")
+                self.result = self.parse(self.lex.tokenize(f.read()))
+                self.restart()
         return self.result
 
     def dumps(self):

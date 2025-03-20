@@ -1,4 +1,4 @@
-from CCError import CCError
+from cc.CCError import CCError
 import struct
 
 class Memory:
