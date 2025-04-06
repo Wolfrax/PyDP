@@ -38,5 +38,6 @@ class CC:
         self.symbols = symbols
         self.pp_parser = pp_parser
         self.cc_parser = cc_parser
+        return self
 
 compiler = CC()

@@ -299,6 +299,7 @@ class DirectDeclarator(Node):
         self.constant_expression = constant_expression
         self.identifier_list = identifier_list
         self._ctx = self._op[op]
+        self.subscript = []
 
     def decl(self):
         ctx = self._ctx
@@ -412,6 +413,9 @@ class Initializer(Node):
                     If val is a string, and starts/ends with "-character, it is simply appended as value to c_expr,
                     but remove "-characters.
                     
+                    int a { 'b' };
+                    Initialize a with ord(b)
+                    
                     int *a { b }; or int *a &b;
                     initializer element (b) is a symbol, that can be either:
                     - a symbolic constant: #define b 1 ==> b is symbolic constant with value 1
@@ -422,14 +426,17 @@ class Initializer(Node):
                       Even if b initialized (int b 1;), the symbol table entry for b, will not have the 
                       'value' attribute, thus get() will return None. The initializer 1 is written into memory. 
                     """
-                    name = val
-                    val = compiler.symbols.get_constant(name)
-                    if val is None:
-                        val = compiler.symbols.get_mempos(name)
-                    if val is None:
-                        raise CCError(f'{self.__class__.__name__}: '
-                                      f'name = {name} not found in symbol table '
-                                      f'[{self._lineno}]')
+                    if val[0] == "'" and val[2] == "'" and val[1].isalpha():  # int a { 'b' };
+                        val = ord(val[1])
+                    else:
+                        name = val
+                        val = compiler.symbols.get_constant(name)
+                        if val is None:
+                            val = compiler.symbols.get_mempos(name)
+                        if val is None:
+                            raise CCError(f'{self.__class__.__name__}: '
+                                          f'name = {name} not found in symbol table '
+                                          f'[{self._lineno}]')
 
                 if isinstance(val, str) and (val[0] == '"' and val[-1] == '"'):
                     val = val[1:-1]  # { "ABC" } => { ABC }
@@ -642,8 +649,12 @@ class TranslationUnit(Node):
             decl = []
             for d in self.external_declarations:
                 declaration = d.decl()
-                decl.append(declaration)
+                if isinstance(declaration, CCDecl):
+                    decl.append(declaration)
+                else:
+                    decl += declaration
                 compiler.symbols.add(declaration)
+            logger.debug(f"Allocated {compiler.symbols.memory.sp} bytes for external declarations")
             return decl
         else:
             return None

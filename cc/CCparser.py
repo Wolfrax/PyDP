@@ -34,10 +34,10 @@ class CCparser(Parser):
         self.result = None
         self.lex = CClexer.CLexer()
 
-    def compile(self, fn=None, src_str=None):
+    def compile(self, fn=None, src=None):
         if fn is None:
-            print(f"Compiling {src_str}")
-            self.result = self.parse(self.lex.tokenize(src_str))
+            print(f"Compiling {src}")
+            self.result = self.parse(self.lex.tokenize(src))
             self.restart()
         else:
             with open(fn, 'r') as f:
@@ -264,9 +264,12 @@ class CCparser(Parser):
 
     @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"', '"&" expression', 'STRING_LITERAL')
     def initializer(self, p):
-        if len(p) == 1:  # int a 1; or char *c "ABC";
+        if len(p) == 1:  # int a 1; or char c 'a'; or char *c "ABC";
             if isinstance(p[0], str):
-                const = p[0].replace("'", '')  # 'a' => a
+                if len(p[0]) == 3 and p[0][0] == "'" and p[0][2] == "'":
+                    const = ord(p[0].replace("'", ''))  # 'a' => a => 97
+                else:
+                    const = p[0]
             else:
                 const = p[0]
             return Initializer(p.lineno, constant=const)

@@ -50,6 +50,7 @@ if __name__ == '__main__':
     compiler.cc_parser.dump(compiler.file + ".json")
 
     ext_decl = compiler.cc_parser.prg.decl()
+    print("Done!")
     #pprint.pprint(ext_decl)
     #compiler.symbols.dump()
 

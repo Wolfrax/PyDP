@@ -43,11 +43,11 @@ class Memory:
             if isinstance(value, int):
                 if value > 0xFF:
                     raise CCError(f'Value {value} is out of range')
-                ba = bytearray(struct.pack(self.mem_format['char'], value.to_bytes(1, self.byte_order_str)))
+                ba = bytearray(struct.pack(self.mem_format['int'], value))
             elif len(value) > 1:
                 for ch in value:
                     self.write(ch, type, byte=True)
-                self.write(0, type, byte=True)  # This is null-byte for string
+                self.write('\x00', type, byte=True)  # This is null-byte for string
                 return pos
             else:
                 ba = bytearray(struct.pack(self.mem_format['char'], value.encode()))
@@ -72,7 +72,7 @@ class Memory:
                 ba = bytearray(struct.pack(self.mem_format['char'], value.to_bytes(1, self.byte_order_str)))
             elif len(value) > 1:
                 for ch in value:
-                    self.update(pos, ch, type, byte=True)  # Note, we donät update null-byte for string, already there
+                    self.update(pos, ch, type, byte=True)  # Note, we don't update null-byte for string, already there
                     pos += 1
                 return
             else:
@@ -99,6 +99,22 @@ class Memory:
             return struct.unpack_from(self.mem_format[type], bytes(self.memory), pos)[0]
         else:
             raise CCError(f"Memory read: unknown type ({type})")
+
+    def read_indirect(self, pos, type):
+        self.counters['read'] += 1
+
+        pos = struct.unpack_from(self.mem_format['pointer'], bytes(self.memory), pos)[0]
+        return self.read(pos, type)
+
+    def read_string(self, pos):
+        self.counters['read'] += 1
+        str = ''
+        ch = struct.unpack_from(self.mem_format['char'], bytes(self.memory), pos)[0].decode(self.chr_enc)
+        while ch != '\x00':
+            str += ch
+            pos += 1
+            ch = struct.unpack_from(self.mem_format['char'], bytes(self.memory), pos)[0].decode(self.chr_enc)
+        return str
 
     def init_mem(self, size=1, type='int'):
         if type != 'char' and self.sp % 2 != 0:  # write on even memory boundary

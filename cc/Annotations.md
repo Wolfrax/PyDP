@@ -119,12 +119,14 @@ When initializer is __{ constant expression }__
     Hence, the initializer will be 2. Same thing applies if the operators would be a constant or variable 
     (previously declared), such as { 1 + b }, evaluation of BinOpExpression will resolve b into a value.
     Hence, such expression will be a constant. Thus, the initializer will be a one element list with a value.
-11. __int *b { a };__ 
-    - same case as 2.e above, different syntax. initializer will be a list with one element, mempos for 'a'. 
-    Thus, 'a' is already resolved to its address/mempos by the AST Initializer object and will be a number, 
+11. __int *a { b };__ 
+    - same case as 8 above, different syntax. initializer will be a list with one element, mempos for 'b'. 
+    Thus, 'b' is already resolved to its address/mempos by the AST Initializer object and will be a number, 
     not a symbolic constant.
-12. __char *c { "ABC" };__ 
-    - same case as 2.d above, different syntax. c is a pointer to the string ABC
+12. __int *a { 'b' };__ 
+    - same case as 5 above, different syntax. initializer will be a list with one element, oridnal value for 'b'.
+13. __char *c { "abc" };__ 
+    - same case as 7 above, different syntax. c is a pointer to the string ABC
 
 ### Arrays
 
@@ -143,7 +145,7 @@ but as a structure, which in turn manages the array part.
 #### Subscript and rank
 
 - one-dimensional (for example, __int a[1]__ - rank one)
-- multi-dimensions (for example, __int a[1][1]__ - rank two)
+- multi-dimensions (for example, __int a[1][2]__ - rank two)
 
 From C Reference Manual §8.3:
 
@@ -151,6 +153,8 @@ From C Reference Manual §8.3:
     and whose type is int." If there is no subscript, "the constant 1 is used".
 
 Thus, __int a[b + c];__ is valid. a and c should be constants (#define) and not variables.
+
+The rank, as total number of elements for an array, is stored in the attribute 'rank'.
 
 #### Initializer
 
@@ -170,7 +174,7 @@ and need to be compatible with the array type.
 A single string may be given as the initializer for an array of char's; in this case, the characters
 in the string are taken as the initializing values.
 
-Thus, __char a[] "ABC";__ is valid and identical to __char *a "abc";__
+Thus, __char a[] "abc";__ is valid and identical to __char *a "abc";__
 
 __char *a[] {"abc", "def", 0};__ 
 
