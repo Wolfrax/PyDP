@@ -1,6 +1,11 @@
 from sly import Parser
-from cc import CClexer
-from cc.CCast import *
+
+import CClexer
+# from cc import CClexer
+
+from CCast import *
+#from cc.CCast import *
+
 import json
 
 ptype = lambda p: p._slice[0].type
@@ -134,7 +139,7 @@ class CCparser(Parser):
         if len(p) == 1:
             return p[0]
         elif len(p) == 2:
-            return UnaryExpression(p.lineno, op=p[0], unary_expression=p[1])
+            return UnaryExpression(p.lineno, op=p[0], expression=p[1])
         else:
             return UnaryExpression(p.lineno, op=p[0], type_name=p[2])
 
@@ -262,9 +267,9 @@ class CCparser(Parser):
     def init_declarator(self, p):
         return p[0] if len(p) == 1 else InitDeclarator(p.lineno, declarator=p[0], initializer=p[1])
 
-    @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"', '"&" expression', 'STRING_LITERAL')
+    @_('CONSTANT', '"-" CONSTANT', '"{" constant_expression_list "}"', '"&" expression', 'STRING_LITERAL', 'ID')
     def initializer(self, p):
-        if len(p) == 1:  # int a 1; or char c 'a'; or char *c "ABC";
+        if len(p) == 1:  # int a 1; or char c 'a'; or char *c "ABC"; or char *a b; (b is a variable)
             if isinstance(p[0], str):
                 if len(p[0]) == 3 and p[0][0] == "'" and p[0][2] == "'":
                     const = ord(p[0].replace("'", ''))  # 'a' => a => 97

@@ -1,1 +1,4 @@
-struct s3 {int m5; int m6;};
+main() {
+    int i;
+    i = 'a' * 'b';
+}

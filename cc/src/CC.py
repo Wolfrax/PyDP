@@ -1,15 +1,18 @@
 import pprint
 import argparse
+import sys
 import os
 import logging
-from CCconf import compiler
-from cc.CCinterpreter import CCinterpreter
-from cc.PPparser import PPparser
-from cc.CCparser import CCparser
-from cc.CCSymbols import CCSymbols
+from src.CCconf import compiler
+from CCinterpreter import CCinterpreter
+from PPparser import PPparser
+from CCparser import CCparser
+from CCSymbols import CCSymbols
+# from cc.CCinterpreter import CCinterpreter
+# from cc.PPparser import PPparser
+# from cc.CCparser import CCparser
+# from cc.CCSymbols import CCSymbols
 
-
-#from cc import CCconf
 
 if __name__ == '__main__':
     logger = logging.getLogger(__name__)
@@ -20,12 +23,13 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose", help="increase output verbosity", action="store_true")
     parser.add_argument("-i", "--interpret", help="interpret C-code", action="store_false")
     parser.add_argument("-w", "--workingdir", help="set working directory", default=os.getcwd())
+    parser.add_argument("--cc", help="C-compiler arguments")
     args = parser.parse_args()
 
     os.chdir(args.workingdir)
     fn = args.file if args.file else ''
 
-    interpreter = CCinterpreter()
+    interpreter = CCinterpreter(compiler, args.cc)
     symbols = CCSymbols(interpreter.memory)
     pp_parser = PPparser()
     cc_parser = CCparser()
@@ -47,14 +51,13 @@ if __name__ == '__main__':
         compiler.pp_parser.set_visited(inc_file)  # Set this file to visited
 
     result = compiler.cc_parser.compile(compiler.file)
-    compiler.cc_parser.dump(compiler.file + ".json")
-
     ext_decl = compiler.cc_parser.prg.decl()
-    print("Done!")
+
+    #interpreter.exec()
+
+    #compiler.cc_parser.dump(compiler.file + ".json")
+    #main = compiler.symbols.get('main')
+
     #pprint.pprint(ext_decl)
     #compiler.symbols.dump()
-
-    #stmt = compiler.cc_parser.prg.stmt()
-    #pprint.pprint(stmt)
-
-
+    print("Done!")

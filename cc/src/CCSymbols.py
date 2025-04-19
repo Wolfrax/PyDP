@@ -1,6 +1,8 @@
 import pprint
 
-from cc.CCError import CCError
+from CCError import CCError
+# from cc.CCError import CCError
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +15,7 @@ class CCSymbols:
         self.struct_members = {}
         self.struct_tags = {}
         self.functions = {}
+        self.locals = {}
         self.memory = memory
 
     def size(self, symbol):
@@ -35,8 +38,13 @@ class CCSymbols:
 
                 # If initializer is a string, memory.write will loop the string and add a null-byte at end
                 init_val = symbol.initializer[0]
-            else:  # no list as initializer, either string or address
-                if isinstance(symbol.initializer, str):  # char *c "abc"; int c 'a';
+            else:  # no list as initializer, either variable, string, address
+                if symbol.initializer in self.variables:  # char a[10]; char *b a; => b have the address to a[0]
+                    if not symbol.pointer:
+                        raise CCError(f'Symbol {symbol.name} no pointer type, initialized to {symbol.initializer} '
+                                      f'[{symbol.lineno}]')
+                    init_val = self.variables[symbol.initializer].mempos
+                elif isinstance(symbol.initializer, str):  # char *c "abc"; int c 'a';
                     if not symbol.pointer and symbol.type_name not in ['char', 'int']:
                         raise CCError(f'Symbol {symbol.name} no pointer type [{symbol.lineno}]')
 
@@ -47,7 +55,7 @@ class CCSymbols:
                         init_val = self.memory.write(symbol.initializer, type=symbol.type_name, byte=True)
                     else:
                         init_val = symbol.initializer
-                else:  # Initializer is not string: int i 1; or int *i 1;
+                else:  # Initializer is not string: int i 1; or int *i 1; <= pointer i initialized to address 1
                     # TODO, check case 9 when PostfixExpression.eval() is implemented
                     init_val = symbol.initializer
 
@@ -579,6 +587,47 @@ class CCSymbols:
             else:
                 raise CCError(f"Unknown ctx: {ctx} ({symbol.lineno})")
 
+    def add_locals(self, symbols):
+        """
+        Used for parameters to a function and for local variables to that function.
+        These are stored into memory (in the call frame) and use the memory function as for external declarations.
+        Locals (parameters + local variables) are not stored into the symbol table however.
+
+        Actual values to parameters are treated as initializers.
+        """
+        if not isinstance(symbols, list):
+            symbols = [symbols]
+
+        for symbol in symbols:
+            ctx = symbol.ctx[-1]
+
+            if ctx == 'id':
+                symbol.size = self.size(symbol)
+                symbol.mempos = self.variable2Memory(symbol)
+                name = symbol.name
+            elif ctx == 'array':
+                symbol.rank = self.arrayRank(symbol)
+                symbol.size = self.arraySize(symbol)
+                symbol.mempos = self.array2Memory(symbol)
+                name = symbol.name
+            elif ctx == 'struct_specifier':
+                symbol.struct_size = self.structSize(symbol)
+                mempos = self.struct2Memory(symbol)
+                if mempos is not None:
+                    symbol.mempos = mempos
+                name = symbol.struct_tag
+                self.locals[symbol.struct_tag] = symbol
+            elif ctx == 'function':
+                if 'declarator' in symbol.ctx:
+                    symbol.size = self.size(symbol)
+                    symbol.mempos = self.variable2Memory(symbol)
+
+                name = symbol.name
+            else:
+                raise CCError(f"Unknown ctx: {ctx} ({symbol.lineno})")
+
+            self.locals[name] = symbol
+            logger.debug(f"added local variable/parameter {name} to symbol table")
 
     def get_constant(self, name):
         return self.constants[name].value if name in self.constants else None
@@ -595,6 +644,18 @@ class CCSymbols:
             return self.structures[name].value
         elif name in self.functions:
             return self.functions[name].value
+        else:
+            return None
+
+    def get_ref(self, name):
+        if name in self.locals:
+            return self.locals[name]
+        elif name in self.variables:
+            return self.variables[name]
+        elif name in self.structures:
+            return self.structures[name]
+        elif name in self.functions:
+            return self.functions[name]
         else:
             return None
 

@@ -424,3 +424,20 @@ Thirdly, layout out the struct in memory, including any initializers.
 Finally, layout the struct variable, it should be a reference to the first member of the struct.
 If the struct variable is not of array type, it should not occupy any memory space. If it is of array type, or a 
 pointer, it should occupy memory. If array type, one memory reference for each array element.
+
+# Evaluation of Expressions
+Each expression-object will have an evaluation method, which should return the "value" of the expression.
+"Value" could be interpreted, or used, in different ways by the callee of the eval-method.
+It might be the value 3 of the constant-expression (BinOp) 1 + 2, it can be True of the expression a > b, where
+a and b could be local variables with values 2 and 1 respectively. It can be the symbol a in the (BinOp) assignment-
+expression of a = b (returning the lvalue) etc.
+
+These expression objects exists in the AST:
+
+- PrimaryExpression
+- PostfixExpression
+- UnaryExpression
+- BinOpExpression
+- ConditionalExpression
+
+

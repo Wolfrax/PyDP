@@ -2,7 +2,7 @@
 
 import pprint
 import json
-from CCconf import compiler, CCDecl
+from src.CCconf import compiler, CCDecl
 from CCError import CCError
 import logging
 
@@ -17,6 +17,7 @@ class Node:
         self._lineno = lineno
         name = self.__class__.__name__
         self._node = None if name == 'ASTList' else name
+        self.compiler = compiler
 
 class ASTList(Node):
     def __init__(self, lineno, items):
@@ -76,13 +77,13 @@ class PrimaryExpression(Node):
         return self.expression.eval()
 
 class PostfixExpression(Node):
-    __ctx = {'[': 'subscript', '(': 'func', '.': 'struct', '->': 'pointer', '++': 'incr', '--': 'decr'}
+    _op = {'[': 'subscript', '(': 'func', '.': 'struct', '->': 'pointer', '++': 'incr', '--': 'decr'}
 
     def __init__(self, lineno, op, postfix_expression=None, expression=None, argument_expression_list=None, id=None):
         super().__init__(lineno)
 
-        if op in self.__ctx:
-            self._ctx = self.__ctx[op]
+        if op in self._op:
+            self._ctx = self._op[op]
         else:
             raise CCError(f'{self.__class__.__name__}: '
                           f'Postfix expression: Unknown operator {op} [{self._lineno}]')
@@ -93,6 +94,8 @@ class PostfixExpression(Node):
         self.id = id  # Used for struct members or pointers, eg a.ID or a->ID
 
     def eval(self):
+        #if self._ctx == 'subscript': # array postfix_expression[expression]
+
         return self.id
 
     def stmt(self):
@@ -105,17 +108,25 @@ class PostfixExpression(Node):
         return ''
 
 class UnaryExpression(Node):
-    def __init__(self, lineno, op, unary_expression=None, type_name=None):
+    def __init__(self, lineno, op, expression=None, type_name=None):
         super().__init__(lineno)
         self.op = op
-        self.unary_expression = unary_expression
+        self.expression = expression
         self.type_name = type_name # type_name == 'pointer' if op == '&'???
 
     def eval(self):
-        return None  # FIXME: evaluate, for example &-operator
+        sym = self.expression.eval()
+        ref = self.compiler.symbols.get_ref(sym)
+        val = self.compiler.interpreter.memory.read(ref.mempos, ref.type_name)
+
+        if self.op == '++':
+            val += 1
+
+        self.compiler.interpreter.memory.update(ref.mempos, val, ref.type_name)
+        return sym
 
     def stmt(self):
-        return f"{self.op} {self.type_name} {self.unary_expression}"
+        return f"{self.op} {self.type_name} {self.expression}"
 
 class BinOpExpression(Node):
     def __init__(self, lineno, op, expr_l, expr_r):
@@ -124,43 +135,87 @@ class BinOpExpression(Node):
         self.expr_r = expr_r
         self.op = op
 
+    def get_val(self, op):
+        val = None
+        ref = self.compiler.symbols.get_ref(op)
+
+        if ref is None:  # Constant
+            val = self.compiler.symbols.get(op)
+        else: # local parameter/variable or externally declared variable
+            mempos = ref.mempos
+            if ref.pointer:
+                for p in ref.pointer:
+                    ref = self.compiler.interpreter.memory.read(mempos, 'pointer')
+                    val = self.compiler.interpreter.memory.read(ref, ref.type_name)
+                    mempos = val
+            else:
+                val = self.compiler.interpreter.memory.read(mempos, ref.type_name)
+        return val
+
     def eval(self):
         left = self.expr_l.eval()
         right = self.expr_r.eval()
 
-        type_l = type(left)
-        type_r = type(right)
+        logger.debug(f'{self.__class__.__name__}: {left} {self.op} {right}')
 
-        if type_l != type_r:
-            if (isinstance(left, int) and isinstance(right, float)) or (isinstance(left, float) and isinstance(right, int)):
-                pass
-            elif (isinstance(left, int) and isinstance(right, str)) or (isinstance(left, str) and isinstance(right, int)):
-                if isinstance(right, str):
-                    right = compiler.symbols.get(right)
-                else:
-                    left = compiler.symbols.get(left)
-            else:
-                raise CCError(f'{self.__class__.__name__}: not compatible types [{self._lineno}]')
+        if self.op == '=': # assignment
+            left_ref = self.compiler.symbols.get_ref(left)
+            if isinstance(right, str):
+                right = self.get_val(right)
 
-        if self.op == '+':
-            return left + right
-        elif self.op == '-':
-            return left - right
-        elif self.op == '*':
-            return left * right
-        elif self.op == '/':
-            return left / right
-        elif self.op == '<<':
-            return left << right
-        elif self.op == '>>':
-            return left >> right
-        elif self.op == '|':
-            return left | right
+            self.compiler.interpreter.memory.update(left_ref.mempos, right, left_ref.type_name)
+
+            return left
         else:
-            raise CCError(f'{self.__class__.__name__}: unsupported operator [{self._lineno}]')
+            if isinstance(right, str):
+                right = self.get_val(right)
+
+            if isinstance(left, str):
+                left = self.get_val(left)
+
+            """
+            Note, from C reference manual:
+                If both operands are int or char, the result is int; if one is int or char and one float or double,
+                the former is converted to double and the result is double; if both are float or double, the result
+                is double. No other combinations are allowed.
+            Currently, we are not explicitly checking this => following python conversions.
+            """
+            if self.op == '+':
+                return left + right
+            elif self.op == '-':
+                return left - right
+            elif self.op == '*':
+                return left * right
+            elif self.op == '/':
+                if right == 0:
+                    raise CCError(f"{self.__class__.__name__}: division by zero [{self._lineno}]")
+
+                if isinstance(left, int) and isinstance(right, int):
+                    return left // right
+                else:
+                    return left / right
+            elif self.op == '<<':
+                return left << right
+            elif self.op == '>>':
+                return left >> right
+            elif self.op == '|':
+                return left | right
+            elif self.op == '<':
+                return left < right
+            elif self.op == '>':
+                return left > right
+            elif self.op == '<=':
+                return left <= right
+            elif self.op == '>=':
+                return left >= right
+            elif self.op == '%':
+                # Only int should be allowed, but here float is ok. Reminder will have same sign as dividend
+                return left % right
+            else:
+                raise CCError(f'{self.__class__.__name__}: unsupported operator {self.op} [{self._lineno}]')
 
     def stmt(self):
-        return f"{self.op} {self.expr_l} {self.expr_r}"
+        return self
 
 class ConditionalExpression(Node):
     def __init__(self, lineno, expr1, expr2, expr3):
@@ -266,10 +321,10 @@ class DeclarationSpecifiers(Node):
     def __init__(self, lineno, storage_class=None, type=None):
         super().__init__(lineno)
         self.storage_class = storage_class if storage_class is not None else 'auto'
-        self.type = TypeSpecifier(lineno, 'int', 'INT') if type is None else type
+        self.type_name = TypeSpecifier(lineno, 'int', 'INT') if type is None else type
 
     def decl(self):
-        decl = self.type.decl()
+        decl = self.type_name.decl()
         return decl.setattr(storage_class=self.storage_class)
 
 class InitDeclarator(Node):
@@ -320,7 +375,7 @@ class DirectDeclarator(Node):
             decl = self.direct_declarator.decl()
             if self.constant_expression is not None:
                 expr = self.constant_expression.eval()
-                expr = compiler.symbols.get_constant(expr) if isinstance(expr, str) else expr
+                expr = self.compiler.symbols.get_constant(expr) if isinstance(expr, str) else expr
                 if not expr:
                     raise CCError(f'{self.__class__.__name__}: '
                                   f'expression = {expr} not found in symbol table '
@@ -430,9 +485,9 @@ class Initializer(Node):
                         val = ord(val[1])
                     else:
                         name = val
-                        val = compiler.symbols.get_constant(name)
+                        val = self.compiler.symbols.get_constant(name)
                         if val is None:
-                            val = compiler.symbols.get_mempos(name)
+                            val = self.compiler.symbols.get_mempos(name)
                         if val is None:
                             raise CCError(f'{self.__class__.__name__}: '
                                           f'name = {name} not found in symbol table '
@@ -498,6 +553,10 @@ class CompoundStatement(Node):
         else:
             return None
 
+    def eval(self):
+        for stmt in self.statement_list:
+            stmt.eval()
+
     def stmt(self):
         if self.statement_list:
             statements = []
@@ -515,6 +574,15 @@ class SelectionStatement(Node):
         self.statement = statement
         self.else_statement = else_statement
 
+    def eval(self):
+        if self.op == 'if':
+            cond = self.expression.eval()
+            if cond:
+                self.statement.eval()
+            else:
+                self.else_statement.eval()
+        pass
+
     def stmt(self):
         if self.else_statement is not None:
             else_statement = self.else_statement.stmt()
@@ -530,6 +598,14 @@ class IterationStatement(Node):
         self.expression_statement1 = expression_statement1
         self.expression_statement2 = expression_statement2
         self.statement = statement
+
+    def eval(self):
+        if self.op == 'while':
+            cond = self.expression.eval()
+            if cond:
+                self.statement.eval()
+
+        pass
 
     def stmt(self):
         return f"{self.op} {self.expression_statement1} {self.expression_statement2} {self.statement.stmt()}"
@@ -610,13 +686,17 @@ class FunctionDefinition(Node):
         parameters = []
         for pname in decl.parameters:
             parameters.append(CCDecl().
-            setattr(**{'type': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}))
+            setattr(**{'type_name': 'int', 'storage_class': 'auto', 'ctx': ['id'], 'name': pname, 'pointer': []}))
 
         # Now loop through all declared parameters, if any
         declared_parameters = []
         if self.declaration_list is not None:
             for decl_pars in self.declaration_list:
-                declared_parameters.append(decl_pars.decl())
+                dp = decl_pars.decl()
+                if dp[0].ctx in ['array', 'struct_specifier'] and not dp[0].pointer:
+                    raise CCError(f"Illegal declaration {dp[0].name} [{dp[0].lineno}]")
+
+                declared_parameters.append(dp)
 
         if len(declared_parameters) > len(parameters):
             raise CCError(f'{self.__class__.__name__}: '
@@ -631,7 +711,8 @@ class FunctionDefinition(Node):
                         ind = parameters.index(par)
                         parameters[ind] = elem
 
-        return decl.setattr(parameters=parameters, return_type=self.declaration_specifiers.decl())
+        return decl.setattr(parameters=parameters, return_type=self.declaration_specifiers.decl(),
+                            statements=self.compound_statement)
 
     def stmt(self):
         return self.compound_statement.stmt()
@@ -653,8 +734,8 @@ class TranslationUnit(Node):
                     decl.append(declaration)
                 else:
                     decl += declaration
-                compiler.symbols.add(declaration)
-            logger.debug(f"Allocated {compiler.symbols.memory.sp} bytes for external declarations")
+                self.compiler.symbols.add(declaration)
+            logger.debug(f"Allocated {self.compiler.symbols.memory.sp} bytes for external declarations")
             return decl
         else:
             return None

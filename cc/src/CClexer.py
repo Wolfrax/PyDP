@@ -87,7 +87,7 @@ class CLexer(Lexer):
        # r'[+-]?(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
        # Note, we should not scan signs in front of digits, if we do expressions such as "a-1" will be scanned
        # as ID CONSTANT (which is grammatically wrong), but should be scanned as ID "-" CONSTANT
-       # A declaration with intializations, such as "int peeksym -1;"  should be scanned as
+       # A declaration with initializations, such as "int peeksym -1;"  should be scanned as
        # INT ID "-" CONSTANT (value = 1), not as INT ID CONSTANT (value = -1)
        r'(?=\d*[.e])(?=\.?\d)\d*\.?\d*(?:[e][+-]?\d+)?',  # FLOAT_CONST
        r'0[0-7]+',  # Octal
@@ -98,7 +98,6 @@ class CLexer(Lexer):
        )
     def CONSTANT(self, t):
         # NB, a constant starting with 0 is interpreted as octal.
-        # print(f'CONSTANT: {t.value}')
         if t.value[0].isdigit():
             if t.value.startswith('0'):
                 if len(t.value) == 1:  # Number is 0 only
@@ -110,6 +109,9 @@ class CLexer(Lexer):
                     t.value = float(t.value)
                 else:
                     t.value = int(t.value)
+        elif t.value[0] == "'" and t.value[-1] == "'" and len(t.value) == 3:
+            t.value = ord(t.value[1:-1])
+
         return t
 
     ID = r'[a-zA-Z_][a-zA-Z0-9_]*'

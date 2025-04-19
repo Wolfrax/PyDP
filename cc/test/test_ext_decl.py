@@ -1,40 +1,4 @@
-import sys
-sys.path.append('..')
-
-from CCconf import compiler
-from CCinterpreter import CCinterpreter
-from PPparser import PPparser
-from CCparser import CCparser
-from CCSymbols import CCSymbols
-
-import pytest
-
-class Compiler:
-    def __init__(self):
-        self.src = None
-        self.interpreter = CCinterpreter()
-        self.compiler = compiler.setup('', True, CCinterpreter(), CCSymbols(self.interpreter.memory),
-                                       PPparser(), CCparser())
-
-    def compile(self, src):
-        self.__init__()
-        self.src = src
-        self.compiler.pp_parser.preprocess(src=self.src)
-
-        for c in self.compiler.pp_parser.defines:
-            self.compiler.symbols.add(c)
-
-        result = self.compiler.cc_parser.compile(src=self.src)
-        ext_decl = self.compiler.cc_parser.prg.decl()
-        return result, ext_decl
-
-    def sz(self, type):
-        return self.interpreter.memory.sz_of[type]
-
-
-@pytest.fixture()
-def CCompiler():
-    return Compiler()
+from compiler_fixture import *
 
 def test_var_decl_size(CCompiler):
     src_code = (
@@ -132,6 +96,28 @@ def test_var_decl_with_init(CCompiler):
                 val = CCompiler.compiler.symbols.memory.read_string(ed.mempos)
             else:
                 val = CCompiler.compiler.symbols.memory.read(ed.mempos, ed.type_name)
+            if ed.type_name in ['float','double']:
+                val = round(val, 2)
+            print(f"Reading {val} from memory")
+            assert val == src[ind + 1]
+
+def test_var_decl_with_array_init(CCompiler):
+    src_code = (
+        ("char v15[2] {'a', 'b'}; char *v16 v15;", 'ab', 'a'),
+    )
+
+    for src in src_code:
+        result, ext_decl = CCompiler.compile(src[0])
+        assert result is None
+        for ind, ed in enumerate(ext_decl):
+            if 'array' in ed.ctx:
+                val = CCompiler.compiler.symbols.memory.read_string(ed.mempos)
+            else:
+                if ed.pointer:
+                    addr = CCompiler.compiler.symbols.memory.read(ed.mempos, 'pointer')
+                    val = CCompiler.compiler.symbols.memory.read(addr, ed.type_name)
+                else:
+                    val = CCompiler.compiler.symbols.memory.read(ed.mempos, ed.type_name)
             if ed.type_name in ['float','double']:
                 val = round(val, 2)
             print(f"Reading {val} from memory")
