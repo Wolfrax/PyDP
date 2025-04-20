@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "-f cc.c -w ./test/ --cc=\"-c c0_tot.c -f -2\""
+            "args": "-f c0_tot.c -w ./test/ --cc=\"-c c0_tot.c -f -2\""
             //"args": "${command:pickArgs}"s
         }
     ]

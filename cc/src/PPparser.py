@@ -1,11 +1,9 @@
 from sly import Parser
 import pprint
 
-from CClexer import PPLexer, CLexer
+from src.CClexer import PPLexer, CLexer
 from src.CCconf import CCDecl
 
-#from cc.CClexer import PPLexer, CLexer
-#from cc.CCconf import CCDecl
 
 class PPparser(Parser):
     start = 'translation_unit'

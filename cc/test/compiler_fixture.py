@@ -1,17 +1,8 @@
-#import sys
-#sys.path.append('..')
-
 from src.CCconf import compiler
-#from cc.CCinterpreter import CCinterpreter
-#from cc.PPparser import PPparser
-#from cc.CCparser import CCparser
-#from cc.CCSymbols import CCSymbols
-
-#from CCconf import compiler
 from src.CCinterpreter import CCinterpreter
-from PPparser import PPparser
-from CCparser import CCparser
-from CCSymbols import CCSymbols
+from src.PPparser import PPparser
+from src.CCparser import CCparser
+from src.CCSymbols import CCSymbols
 
 import pytest
 

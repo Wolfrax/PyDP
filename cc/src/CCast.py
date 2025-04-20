@@ -3,10 +3,10 @@
 import pprint
 import json
 from src.CCconf import compiler, CCDecl
-from CCError import CCError
+from src.CCError import CCError
 import logging
 
-#from cc.CCSymbols import CCSymbols
+from src.CCSymbols import CCSymbols
 
 #from llvmlite.binding import StorageClass
 

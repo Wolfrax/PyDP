@@ -1,8 +1,6 @@
 from src.CCMemory import Memory
-from CCError import CCError
+from src.CCError import CCError
 
-#from cc.CCMemory import Memory
-#from cc.CCError import CCError
 
 import argparse
 import re
