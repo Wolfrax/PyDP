@@ -1,4 +1,4 @@
-from compiler_fixture import *
+from test.compiler_fixture import *
 
 def test_basic_binop(CCompiler):
     src_code = (

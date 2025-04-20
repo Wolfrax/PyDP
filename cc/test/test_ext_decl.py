@@ -1,4 +1,4 @@
-from compiler_fixture import *
+from test.compiler_fixture import *
 
 def test_var_decl_size(CCompiler):
     src_code = (
