@@ -10,7 +10,16 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "-f c0_tot.c -w ./test/ --cc=\"-c c0_tot.c -f -2\""
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "Python Debugger: CC",
+            "type": "debugpy",
+            "request": "launch",
+            //"program": "${file}",
+            "program": "./src/CC.py",
+            "console": "integratedTerminal",
+            "args": "-f cc_test.c -w ./test/ --cc=\"-c cc_test.c -f -2\""
             //"args": "${command:pickArgs}"s
         }
     ]

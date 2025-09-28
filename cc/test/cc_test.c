@@ -1,4 +1,4 @@
 main() {
-    int i;
-    i = 'a' * 'b';
+    struct a {int b;} a[10];
+    a[1].b = 1;
 }

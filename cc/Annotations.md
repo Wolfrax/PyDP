@@ -441,3 +441,27 @@ These expression objects exists in the AST:
 - ConditionalExpression
 
 
+## PrimaryExpression
+A primary expression can be of these types (ctx):
+
+- __string_literal__: A string literal, value is set to the string (with out quote marks)
+- __id__: A name of a symbol, like "int i;", where "i" will be a primary expression of this type, with value "i"
+- __int__: A constant of integer type, value is set to the constant
+- __float__: A constant of float type, value is set to the constant
+- __expr__: A reference - within parenthesis - to another expression. There is no value directly associated
+
+When evaluating  primary expression, an __ExprEval__-object is created. This object will have the following attributes:
+
+- __value__: For string_literal, int and float types value is set to the constant value.
+- __id__: Name of expression, if any. For constant expression (like 1), id is None
+- __mempos__: The memory position of the expression, typically a variable. Constant expressions is None
+
+## PostfixExpression
+A postfix expression can be of these type (ctx):
+
+- __subscript__: A subscript expression, or index, to a array element (a[i] - i is subscript)
+- __func__: Arguments to a function call
+- __struct__: The struct before member, example: a.b, the postfixexpression is 'a' (PrimaryEXpression).
+- __pointer__
+- __incr__
+- __decr__
