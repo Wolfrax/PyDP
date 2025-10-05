@@ -1,4 +1,4 @@
-from src.CCError import CCError
+from cc.src.CCError import CCError
 
 import struct
 

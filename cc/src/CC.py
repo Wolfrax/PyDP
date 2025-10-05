@@ -3,11 +3,17 @@ import argparse
 import sys
 import os
 import logging
-from src.CCconf import compiler
-from CCinterpreter import CCinterpreter
-from PPparser import PPparser
-from CCparser import CCparser
-from CCSymbols import CCSymbols
+#from src.CCconf import compiler
+from cc.src.CCconf import compiler
+from cc.src.CCinterpreter import CCinterpreter
+from cc.src.PPparser import PPparser
+from cc.src.CCparser import CCparser
+from cc.src.CCSymbols import CCSymbols
+
+#from CCinterpreter import CCinterpreter
+#from PPparser import PPparser
+#from CCparser import CCparser
+#from CCSymbols import CCSymbols
 # from cc.CCinterpreter import CCinterpreter
 # from cc.PPparser import PPparser
 # from cc.CCparser import CCparser

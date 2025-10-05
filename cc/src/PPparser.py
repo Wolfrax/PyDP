@@ -1,8 +1,8 @@
 from sly import Parser
 import pprint
 
-from src.CClexer import PPLexer, CLexer
-from src.CCconf import CCDecl
+from cc.src.CClexer import PPLexer, CLexer
+from cc.src.CCconf import CCDecl
 
 
 class PPparser(Parser):

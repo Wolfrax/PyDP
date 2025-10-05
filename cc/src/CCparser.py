@@ -1,6 +1,6 @@
 from sly import Parser
-from src import CClexer
-from src.CCast import *
+from cc.src import CClexer
+from cc.src.CCast import *
 import json
 
 ptype = lambda p: p._slice[0].type

@@ -1,5 +1,5 @@
-from src.CCMemory import Memory
-from src.CCError import CCError
+from cc.src.CCMemory import Memory
+from cc.src.CCError import CCError
 
 
 import argparse

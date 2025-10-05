@@ -1,0 +1,1 @@
+python -m cc.src.CC -w /home/mm/app/PyDP/cc/ref/ -f c00.c 

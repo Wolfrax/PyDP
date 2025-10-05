@@ -2,11 +2,11 @@
 
 import pprint
 import json
-from src.CCconf import compiler, CCDecl
-from src.CCError import CCError
+from cc.src.CCconf import compiler, CCDecl
+from cc.src.CCError import CCError
 import logging
 
-from src.CCSymbols import CCSymbols
+from cc.src.CCSymbols import CCSymbols
 
 #from llvmlite.binding import StorageClass
 
